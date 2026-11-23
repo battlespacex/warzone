@@ -954,7 +954,8 @@
     gap: .5rem;
 }
 
-.wz-event-popup__cat, .wz-event-popup__sev {
+.wz-event-popup__cat,
+.wz-event-popup__sev {
     display: flex;
     align-items: center;
     flex-shrink: 0;
@@ -1048,7 +1049,8 @@
     align-items: center;
 }
 
-.wz-event-popup__action, .wz-event-popup__source {
+.wz-event-popup__action,
+.wz-event-popup__source {
 
     display: inline-flex;
     align-items: center;
@@ -1951,7 +1953,7 @@
     font-weight: 700;
 }
 
-.wz-orbital-region-accordion[open] > .wz-orbital-region-accordion__head::after {
+.wz-orbital-region-accordion[open]>.wz-orbital-region-accordion__head::after {
     content: "-";
 }
 
@@ -2188,7 +2190,7 @@
     padding: 1.2rem 1.4rem;
     color: var(--color-text-heading);
     background: linear-gradient(90deg, color-mix(in srgb, currentColor 14%, transparent),
-    transparent 34%), rgb(41 48 57 / 88%);
+            transparent 34%), rgb(41 48 57 / 88%);
     border-left: 1rem solid var(--warzone-alert-color);
     clip-path: var(--clippath-shape-3);
 }
@@ -2229,7 +2231,7 @@
 }
 
 .warzone-alert__text strong {
-  display: block;
+    display: block;
     overflow: hidden;
     font-weight: 700;
     color: var(--color-text-heading);
@@ -2692,8 +2694,10 @@ body.is-map-layers-open .wz-map-layers-pane {
     pointer-events: none;
 }
 
-.warzone-widget.is-layer-disabled .wz-aircraft-toolbar, .warzone-widget.is-layer-disabled .wz-naval-toolbar,
-.warzone-widget.is-layer-disabled .wz-aircraft-panel, .warzone-widget.is-layer-disabled .wz-naval-panel {
+.warzone-widget.is-layer-disabled .wz-aircraft-toolbar,
+.warzone-widget.is-layer-disabled .wz-naval-toolbar,
+.warzone-widget.is-layer-disabled .wz-aircraft-panel,
+.warzone-widget.is-layer-disabled .wz-naval-panel {
     display: none;
 }
 
@@ -3606,7 +3610,8 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     top: calc(40vh - -2rem);
 }
 
-.warzone-panel--floating.warzone-widget--aircraft, .warzone-panel--floating.warzone-widget--naval {
+.warzone-panel--floating.warzone-widget--aircraft,
+.warzone-panel--floating.warzone-widget--naval {
     max-height: 55vh;
     width: 32rem;
     max-width: calc(100vw - 32rem);
@@ -3714,7 +3719,7 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 .wz-intro .wz-content[data-pane] p,
 .wz-about .wz-content[data-pane] p {
     margin: 0 0 1rem;
-        color: var(--color-text-dim);
+    color: var(--color-text-dim);
 }
 
 .wz-support-return .wz-modal-body {
@@ -3917,7 +3922,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     pointer-events: none;
 }
 
-.wz-tactical-annotation__leader[hidden] { display: none; }
+.wz-tactical-annotation__leader[hidden] {
+    display: none;
+}
 
 /* #region =========== WIDGET - CRITICALITY COLOR PILLS =========== */
 .status-list {
@@ -3936,7 +3943,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 .wz-status-report details,
-.wz-status-report summary { min-width: 0; }
+.wz-status-report summary {
+    min-width: 0;
+}
 
 .wz-status-report summary {
     display: grid;
@@ -3946,7 +3955,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     list-style: none;
 }
 
-.wz-status-report summary::-webkit-details-marker { display: none; }
+.wz-status-report summary::-webkit-details-marker {
+    display: none;
+}
 
 .wz-status-report__head,
 .wz-status-report__meta {
@@ -3968,7 +3979,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     overflow: hidden;
 }
 
-.wz-status-report details[open] .wz-status-report__head strong { display: block; }
+.wz-status-report details[open] .wz-status-report__head strong {
+    display: block;
+}
 
 .wz-status-report .status-pill {
     min-width: 0;
@@ -3990,7 +4003,9 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     overflow: hidden;
 }
 
-.wz-status-report details[open] .wz-status-report__preview { display: none; }
+.wz-status-report details[open] .wz-status-report__preview {
+    display: none;
+}
 
 .wz-status-report__meta {
     color: var(--color-text-dim);
@@ -3999,7 +4014,10 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     overflow-wrap: anywhere;
 }
 
-.wz-status-report__meta time { flex: 0 0 auto; text-align: right; }
+.wz-status-report__meta time {
+    flex: 0 0 auto;
+    text-align: right;
+}
 
 .wz-status-report__full {
     margin: 0 .8rem .6rem;
@@ -4021,11 +4039,13 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
     font-size: var(--text-xs);
     overflow-wrap: anywhere;
 }
+
 #cyber-status-list[hidden],
 #airspace-status-list[hidden],
 #wz-aircraft-panel[hidden],
 #wz-naval-panel-list[hidden],
-.wz-aircraft-toolbar[hidden], .wz-naval-toolbar[hidden] {
+.wz-aircraft-toolbar[hidden],
+.wz-naval-toolbar[hidden] {
     display: none !important;
 }
 
@@ -4037,15 +4057,21 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 .status-pill {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    min-width: 9rem;
-    height: 3rem;
-    padding: 0 0.3rem;
-    font-size: var(--text-sm);
+    flex-shrink: 0;
+
+    height: 2.6rem;
+    min-height: 1.6rem;
+    width: fit-content;
+    padding: .0rem 0.8rem;
+    clip-path: var(--clippath-shape-3);
+
+    font-size: var(--text-xs);
+    letter-spacing: .1rem;
+    font-weight: 700;
     text-transform: uppercase;
-    clip-path: var(--clippath-shape-4);
+    line-height: 1;
 }
 
 .status-pill--closed,
@@ -4168,7 +4194,8 @@ body.is-dashboard-widgets-visible .warzone-panel--floating:not(.wz-is-hidden) {
 }
 
 .warzone-panel--floating.is-collapsed .panel-content,
-.warzone-panel--floating.is-collapsed .wz-aircraft-toolbar, .warzone-panel--floating.is-collapsed .wz-naval-toolbar,
+.warzone-panel--floating.is-collapsed .wz-aircraft-toolbar,
+.warzone-panel--floating.is-collapsed .wz-naval-toolbar,
 .warzone-panel--floating.is-collapsed .wz-feed-footer {
     height: 0 !important;
     opacity: 0;
@@ -4185,12 +4212,12 @@ width: 32rem;
 }
 UNUSED CANDIDATE END */
 .warzone-panel--floating:not(.wz-is-hidden) .panel-head,
-:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-header {
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-header {
     cursor: grab;
 }
 
 .warzone-panel--floating.is-dragging .panel-head,
-:is(#warzone-notice-panel,#warzone-notice-popup).is-dragging .wz-widget-header {
+:is(#warzone-notice-panel, #warzone-notice-popup).is-dragging .wz-widget-header {
     cursor: grabbing;
 }
 
@@ -4353,13 +4380,12 @@ UNUSED CANDIDATE END */
 }
 
 /* Rotate when expanded */
-.wz-sam-radar-card.is-expanded
-.static-icon .stratops-ico-top-1 {
+.wz-sam-radar-card.is-expanded .static-icon .stratops-ico-top-1 {
     transform: rotate(0deg);
 }
 
 
-.wz-sam-radar-card__surface > * {
+.wz-sam-radar-card__surface>* {
     position: relative;
     z-index: 1;
 }
@@ -4439,8 +4465,7 @@ UNUSED CANDIDATE END */
 }
 
 /* Expanded */
-.wz-sam-radar-card.is-expanded
-.wz-sam-radar-card__details {
+.wz-sam-radar-card.is-expanded .wz-sam-radar-card__details {
     max-height: min(36rem, calc(100vh - 12rem));
     padding-bottom: 1.5rem;
     opacity: 1;
@@ -4463,7 +4488,7 @@ UNUSED CANDIDATE END */
     font-size: var(--text-sm);
 }
 
-.wz-sam-radar-card__data > div {
+.wz-sam-radar-card__data>div {
     padding: 1rem 1rem .7rem;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
@@ -4497,6 +4522,7 @@ UNUSED CANDIDATE END */
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .wz-sam-radar-card__details,
     .wz-sam-radar-card__chevron {
         transition: none;
@@ -4505,25 +4531,30 @@ UNUSED CANDIDATE END */
 
 /* #endregion =========== */
 /* #region =========== WIDGET - AIRCRAFT MOVEMENTS =========== */
-.wz-aircraft-toolbar, .wz-naval-toolbar {
+.wz-aircraft-toolbar,
+.wz-naval-toolbar {
     display: flex;
     flex-direction: column;
     gap: 1rem;
     padding: 1.5rem 1.5rem 0;
 }
 
-.wz-aircraft-filters, .wz-naval-filters {
+.wz-aircraft-filters,
+.wz-naval-filters {
     display: flex;
     flex-wrap: wrap;
     gap: .5rem;
 }
 
-.wz-aircraft-filter, .wz-naval-filter,
-.wz-aircraft-select, .wz-naval-select {
+.wz-aircraft-filter,
+.wz-naval-filter,
+.wz-aircraft-select,
+.wz-naval-select {
     background: var(--color-bg-row);
 }
 
-.wz-aircraft-filter, .wz-naval-filter {
+.wz-aircraft-filter,
+.wz-naval-filter {
     height: 3rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -4532,27 +4563,34 @@ UNUSED CANDIDATE END */
     flex: 1;
 }
 
-.wz-aircraft-filter.is-active, .wz-naval-filter.is-active  {
+.wz-aircraft-filter.is-active,
+.wz-naval-filter.is-active {
     background: var(--color-teal);
 }
 
-.wz-aircraft-filter.is-active:hover, .wz-naval-filter.is-active:hover {
+.wz-aircraft-filter.is-active:hover,
+.wz-naval-filter.is-active:hover {
     background: var(--color-teal-glow);
 }
 
-.wz-aircraft-type-filter, .wz-aircraft-type-filter .wz-selector, .wz-naval-type-filter, .wz-naval-type-filter .wz-selector {
-    width: 100% ;
-    max-width: 100% ;
+.wz-aircraft-type-filter,
+.wz-aircraft-type-filter .wz-selector,
+.wz-naval-type-filter,
+.wz-naval-type-filter .wz-selector {
+    width: 100%;
+    max-width: 100%;
 }
 
 
 
-.wz-aircraft-country, .wz-naval-country {
+.wz-aircraft-country,
+.wz-naval-country {
     position: relative;
     width: 100%;
 }
 
-.wz-aircraft-country__trigger, .wz-naval-country__trigger {
+.wz-aircraft-country__trigger,
+.wz-naval-country__trigger {
     width: 100%;
     height: 3rem;
     justify-content: flex-start;
@@ -4561,7 +4599,8 @@ UNUSED CANDIDATE END */
     padding: 0 .9rem;
 }
 
-.wz-aircraft-country__menu, .wz-naval-country__menu {
+.wz-aircraft-country__menu,
+.wz-naval-country__menu {
     position: absolute;
     top: calc(100% + .5rem);
     left: 0;
@@ -4574,7 +4613,8 @@ UNUSED CANDIDATE END */
     background: rgba(10, 16, 28, 0.96);
 }
 
-.wz-aircraft-country__search, .wz-naval-country__search {
+.wz-aircraft-country__search,
+.wz-naval-country__search {
     width: 100%;
     height: 2.8rem;
     background: rgba(18, 26, 42, 0.95);
@@ -4602,13 +4642,15 @@ UNUSED CANDIDATE END */
     text-align: left;
 }
 
-.wz-aircraft-country__actions, .wz-naval-country__actions {
+.wz-aircraft-country__actions,
+.wz-naval-country__actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: .5rem;
 }
 
-.wz-aircraft-country__actions>button, .wz-naval-country__actions>button {
+.wz-aircraft-country__actions>button,
+.wz-naval-country__actions>button {
     height: 2.6rem;
     color: var(--color-text-heading);
     font-size: var(--text-xs);
@@ -4616,7 +4658,8 @@ UNUSED CANDIDATE END */
     cursor: pointer;
 }
 
-.wz-aircraft-country__options, .wz-naval-country__options {
+.wz-aircraft-country__options,
+.wz-naval-country__options {
     max-height: 18rem;
     overflow: auto;
     display: flex;
@@ -4624,7 +4667,8 @@ UNUSED CANDIDATE END */
     gap: .5rem;
 }
 
-.wz-aircraft-country__option, .wz-naval-country__option {
+.wz-aircraft-country__option,
+.wz-naval-country__option {
     display: flex;
     align-items: center;
     gap: .5rem;
@@ -4632,31 +4676,36 @@ UNUSED CANDIDATE END */
     font-size: var(--text-sm);
 }
 
-.wz-aircraft-country__option input[type="checkbox"], .wz-naval-country__option input[type="checkbox"] {
+.wz-aircraft-country__option input[type="checkbox"],
+.wz-naval-country__option input[type="checkbox"] {
     width: 1.4rem;
     height: 1.4rem;
     accent-color: var(--color-teal);
 }
 
-.wz-aircraft-country__empty, .wz-naval-country__empty  {
+.wz-aircraft-country__empty,
+.wz-naval-country__empty {
     color: var(--color-text-dim);
     font-size: var(--text-sm);
     padding: .5rem 0;
 }
 
-.wz-aircraft-panel, .wz-naval-panel {
+.wz-aircraft-panel,
+.wz-naval-panel {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
     padding: 1.5rem;
 }
 
-.wz-aircraft-empty, .wz-naval-empty {
+.wz-aircraft-empty,
+.wz-naval-empty {
     color: var(--color-text-dim);
     text-align: center;
 }
 
-.wz-aircraft-item, .wz-naval-item {
+.wz-aircraft-item,
+.wz-naval-item {
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -4665,41 +4714,57 @@ UNUSED CANDIDATE END */
     gap: .5rem;
 }
 
-.wz-aircraft-item:before, .wz-naval-item:before {
+.wz-aircraft-item:before,
+.wz-naval-item:before {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    bottom:0;
-    content:'';
+    bottom: 0;
+    content: '';
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-1);
     z-index: -1;
 }
 
+.wz-naval-item__provenance {
+    display: none;
+}
 
-.wz-aircraft-item__top, .wz-naval-item__top, .wz-aircraft-item__meta, .wz-naval-item__meta, .wz-aircraft-item__stats, .wz-naval-item__stats {
+
+.wz-aircraft-item__top,
+.wz-naval-item__top,
+.wz-aircraft-item__meta,
+.wz-naval-item__meta,
+.wz-aircraft-item__stats,
+.wz-naval-item__stats {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
 }
 
-.wz-aircraft-item__top, .wz-naval-item__top {
+.wz-aircraft-item__top,
+.wz-naval-item__top {
     align-items: flex-start;
 }
 
-.wz-aircraft-item__meta, .wz-naval-item__meta, .wz-aircraft-item__stats, .wz-naval-item__stats {
+.wz-aircraft-item__meta,
+.wz-naval-item__meta,
+.wz-aircraft-item__stats,
+.wz-naval-item__stats {
     display: grid;
     width: 100%;
     gap: 1rem;
 }
 
-.wz-aircraft-item__meta, .wz-naval-item__meta {
+.wz-aircraft-item__meta,
+.wz-naval-item__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.wz-aircraft-item__stats, .wz-naval-item__stats {
+.wz-aircraft-item__stats,
+.wz-naval-item__stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     background: var(--color-bg-header);
     padding: 1rem 1rem .7rem;
@@ -4709,7 +4774,8 @@ UNUSED CANDIDATE END */
     color: var(--color-text);
 }
 
-.wz-aircraft-item__title, .wz-naval-item__title {
+.wz-aircraft-item__title,
+.wz-naval-item__title {
     display: flex;
     flex: 1;
     min-width: 0;
@@ -4718,9 +4784,12 @@ UNUSED CANDIDATE END */
     color: var(--color-text-heading);
 }
 
-.wz-aircraft-item__time, .wz-naval-item__time,
-.wz-aircraft-item__meta, .wz-naval-item__meta,
-.wz-aircraft-item__stats, .wz-naval-item__stats {
+.wz-aircraft-item__time,
+.wz-naval-item__time,
+.wz-aircraft-item__meta,
+.wz-naval-item__meta,
+.wz-aircraft-item__stats,
+.wz-naval-item__stats {
     font-size: var(--text-sm);
     color: var(--color-text-dim);
 }
@@ -4731,26 +4800,31 @@ UNUSED CANDIDATE END */
     overflow-wrap: anywhere;
 }
 
-.wz-aircraft-item__time, .wz-naval-item__time {
+.wz-aircraft-item__time,
+.wz-naval-item__time {
     flex: 0 0 auto;
     padding-top: .1rem;
     text-transform: uppercase;
     display: none;
 }
 
-.wz-aircraft-item__meta span, .wz-naval-item__meta span,
-.wz-aircraft-item__stats span, .wz-naval-item__stats span {
+.wz-aircraft-item__meta span,
+.wz-naval-item__meta span,
+.wz-aircraft-item__stats span,
+.wz-naval-item__stats span {
     display: flex;
     min-width: 0;
     flex-direction: column;
     overflow-wrap: anywhere;
 }
 
-.wz-aircraft-item__stats span, .wz-naval-item__stats span {
+.wz-aircraft-item__stats span,
+.wz-naval-item__stats span {
     gap: .5rem
 }
 
-.wz-aircraft-badge, .wz-naval-badge {
+.wz-aircraft-badge,
+.wz-naval-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -4762,17 +4836,20 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-4);
 }
 
-.wz-aircraft-badge.is-active, .wz-naval-badge.is-active {
+.wz-aircraft-badge.is-active,
+.wz-naval-badge.is-active {
     color: var(--criticality-level-lo-cl);
     background: var(--criticality-level-lo-bg);
 }
 
-.wz-aircraft-badge.is-ended , .wz-naval-badge.is-ended {
+.wz-aircraft-badge.is-ended,
+.wz-naval-badge.is-ended {
     color: var(--criticality-level-de-cl);
     background: var(--criticality-level-de-bg);
 }
 
-.wz-aircraft-action, .wz-naval-action {
+.wz-aircraft-action,
+.wz-naval-action {
     height: 3rem;
     font-size: var(--text-sm);
     text-transform: uppercase;
@@ -4782,7 +4859,8 @@ UNUSED CANDIDATE END */
     margin-top: 1rem;
 }
 
-.wz-aircraft-focus-panel, .wz-naval-focus-panel {
+.wz-aircraft-focus-panel,
+.wz-naval-focus-panel {
     position: absolute;
     z-index: 43;
     width: max-content;
@@ -4797,18 +4875,22 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-1);
 }
 
-.wz-aircraft-focus-panel.is-visible, .wz-naval-focus-panel.is-visible {
+.wz-aircraft-focus-panel.is-visible,
+.wz-naval-focus-panel.is-visible {
     opacity: 1;
 }
 
-.wz-aircraft-focus-panel__modes, .wz-naval-focus-panel__modes,
-.wz-aircraft-focus-panel__controls, .wz-naval-focus-panel__controls {
+.wz-aircraft-focus-panel__modes,
+.wz-naval-focus-panel__modes,
+.wz-aircraft-focus-panel__controls,
+.wz-naval-focus-panel__controls {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: .5rem;
 }
 
-.wz-aircraft-focus-panel__controls, .wz-naval-focus-panel__controls {
+.wz-aircraft-focus-panel__controls,
+.wz-naval-focus-panel__controls {
     grid-auto-flow: column;
     grid-auto-columns: max-content;
     grid-template-columns: none;
@@ -4816,8 +4898,10 @@ UNUSED CANDIDATE END */
     justify-content: center;
 }
 
-.wz-aircraft-focus-panel__mode, .wz-naval-focus-panel__mode,
-.wz-aircraft-focus-panel__unfocus, .wz-naval-focus-panel__unfocus {
+.wz-aircraft-focus-panel__mode,
+.wz-naval-focus-panel__mode,
+.wz-aircraft-focus-panel__unfocus,
+.wz-naval-focus-panel__unfocus {
     height: 3rem;
     width: auto;
     min-width: 0;
@@ -4835,11 +4919,13 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-3);
 }
 
-.wz-aircraft-focus-panel__mode.is-active, .wz-naval-focus-panel__mode.is-active {
+.wz-aircraft-focus-panel__mode.is-active,
+.wz-naval-focus-panel__mode.is-active {
     background: var(--color-teal);
 }
 
-.wz-aircraft-focus-panel__unfocus, .wz-naval-focus-panel__unfocus {
+.wz-aircraft-focus-panel__unfocus,
+.wz-naval-focus-panel__unfocus {
     width: auto;
     margin-bottom: 0;
     border: 0;
@@ -4848,11 +4934,13 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-4);
 }
 
-.wz-aircraft-focus-panel__unfocus:hover, .wz-naval-focus-panel__unfocus:hover {
+.wz-aircraft-focus-panel__unfocus:hover,
+.wz-naval-focus-panel__unfocus:hover {
     background: var(--color-teal-hover);
 }
 
-.wz-aircraft-focus-panel__title , .wz-naval-focus-panel__title {
+.wz-aircraft-focus-panel__title,
+.wz-naval-focus-panel__title {
     margin-bottom: .5rem;
     color: var(--color-teal);
     font-size: var(--text-xs);
@@ -4862,29 +4950,34 @@ UNUSED CANDIDATE END */
     display: none;
 }
 
-.wz-aircraft-focus-panel__metrics, .wz-naval-focus-panel__metrics {
+.wz-aircraft-focus-panel__metrics,
+.wz-naval-focus-panel__metrics {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
     padding-bottom: 1rem;
 }
 
-.wz-aircraft-focus-panel__metric, .wz-naval-focus-panel__metric {
+.wz-aircraft-focus-panel__metric,
+.wz-naval-focus-panel__metric {
     min-width: 0;
     gap: .5rem;
     display: flex;
     flex-direction: column;
 }
 
-.wz-aircraft-focus-panel__metric-label, .wz-naval-focus-panel__metric-label,
-.wz-aircraft-focus-panel__metric-value, .wz-naval-focus-panel__metric-value {
+.wz-aircraft-focus-panel__metric-label,
+.wz-naval-focus-panel__metric-label,
+.wz-aircraft-focus-panel__metric-value,
+.wz-naval-focus-panel__metric-value {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.wz-aircraft-focus-panel__metric-label, .wz-naval-focus-panel__metric-label {
+.wz-aircraft-focus-panel__metric-label,
+.wz-naval-focus-panel__metric-label {
     color: var(--color-text-dim);
     font-size: var(--text-xs);
     text-transform: uppercase;
@@ -4892,7 +4985,8 @@ UNUSED CANDIDATE END */
     letter-spacing: .03rem;
 }
 
-.wz-aircraft-focus-panel__metric-value, .wz-naval-focus-panel__metric-value {
+.wz-aircraft-focus-panel__metric-value,
+.wz-naval-focus-panel__metric-value {
     color: var(--color-text-heading);
     font-size: var(--text-xs);
     text-transform: uppercase;
@@ -4900,14 +4994,18 @@ UNUSED CANDIDATE END */
     letter-spacing: .03rem;
 }
 
-.wz-aircraft-action:disabled, .wz-naval-action:disabled,
-.wz-aircraft-action[aria-disabled="true"], .wz-naval-action[aria-disabled="true"],
-.wz-aircraft-action.is-focus-disabled, .wz-naval-action.is-focus-disabled {
+.wz-aircraft-action:disabled,
+.wz-naval-action:disabled,
+.wz-aircraft-action[aria-disabled="true"],
+.wz-naval-action[aria-disabled="true"],
+.wz-aircraft-action.is-focus-disabled,
+.wz-naval-action.is-focus-disabled {
     opacity: 0.5;
     pointer-events: none;
 }
 
-.wz-aircraft-item.is-focus-disabled, .wz-naval-item.is-focus-disabled {
+.wz-aircraft-item.is-focus-disabled,
+.wz-naval-item.is-focus-disabled {
     opacity: 0.7;
     transition: opacity 0.25s ease;
 }
@@ -4917,14 +5015,16 @@ UNUSED CANDIDATE END */
     filter: grayscale(.35);
 }
 
-.wz-aircraft-item__foot, .wz-naval-item__foot {
+.wz-aircraft-item__foot,
+.wz-naval-item__foot {
     display: flex;
     justify-content: flex-end;
     align-items: flex-end;
     gap: 1rem;
 }
 
-.wz-aircraft-technical-details, .wz-naval-technical-details {
+.wz-aircraft-technical-details,
+.wz-naval-technical-details {
     display: none;
     flex-direction: column;
     height: auto;
@@ -4939,7 +5039,8 @@ UNUSED CANDIDATE END */
     clip-path: var(--clippath-shape-3);
 }
 
-.wz-aircraft-technical-details h3, .wz-naval-technical-details h3 {
+.wz-aircraft-technical-details h3,
+.wz-naval-technical-details h3 {
     color: var(--color-text-heading);
     font-size: var(--text-lg);
     line-height: 1.8rem;
@@ -4970,8 +5071,9 @@ UNUSED CANDIDATE END */
     gap: .2rem;
 }
 
-.wz-naval-details-item dt, .wz-naval-details-item dd {
-        font-size: var(--text-sm);
+.wz-naval-details-item dt,
+.wz-naval-details-item dd {
+    font-size: var(--text-sm);
 
 }
 
@@ -4986,16 +5088,19 @@ UNUSED CANDIDATE END */
     font-weight: 600;
 }
 
-.wz-aircraft-lock-btn, .wz-naval-lock-btn {
+.wz-aircraft-lock-btn,
+.wz-naval-lock-btn {
     min-width: 9rem;
     color: var(--color-text-dim);
 }
 
-.wz-aircraft-lock-btn[aria-pressed="true"], .wz-naval-lock-btn[aria-pressed="true"] {
+.wz-aircraft-lock-btn[aria-pressed="true"],
+.wz-naval-lock-btn[aria-pressed="true"] {
     color: var(--color-teal-glow);
 }
 
-.wz-aircraft-lock-indicator, .wz-naval-lock-indicator {
+.wz-aircraft-lock-indicator,
+.wz-naval-lock-indicator {
     display: inline-block;
     position: relative;
     width: .92rem;
@@ -5004,7 +5109,8 @@ UNUSED CANDIDATE END */
     vertical-align: -0.08rem;
 }
 
-.wz-aircraft-lock-indicator:before, .wz-naval-lock-indicator:before {
+.wz-aircraft-lock-indicator:before,
+.wz-naval-lock-indicator:before {
     content: "";
     position: absolute;
     left: 50%;
@@ -5017,11 +5123,13 @@ UNUSED CANDIDATE END */
     transform: translateX(-50%);
 }
 
-.wz-aircraft-lock-indicator.is-unlocked:before, .wz-naval-lock-indicator.is-unlocked:before {
+.wz-aircraft-lock-indicator.is-unlocked:before,
+.wz-naval-lock-indicator.is-unlocked:before {
     transform: translateX(-5%) rotate(-26deg);
 }
 
-.wz-aircraft-load-more, .wz-naval-load-more {
+.wz-aircraft-load-more,
+.wz-naval-load-more {
     cursor: pointer;
     pointer-events: auto;
 }
@@ -5037,7 +5145,8 @@ UNUSED CANDIDATE END */
     opacity: 0.8;
 }
 
-.wz-aircraft-title__status, .wz-naval-title__status {
+.wz-aircraft-title__status,
+.wz-naval-title__status {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -5047,7 +5156,8 @@ UNUSED CANDIDATE END */
 }
 
 
-.wz-aircraft-title__status .static-icon, .wz-naval-title__status .static-icon {
+.wz-aircraft-title__status .static-icon,
+.wz-naval-title__status .static-icon {
     font-size: var(--icon-md);
     width: 1.5rem;
     height: 1.5rem;
@@ -5064,18 +5174,22 @@ UNUSED CANDIDATE END */
     color: var(--color-purple-slate);
 }
 
-.wz-aircraft-title__status.is-ended, .wz-naval-title__status.is-ended {
+.wz-aircraft-title__status.is-ended,
+.wz-naval-title__status.is-ended {
     color: var(--color-gray-slate)
 }
 
-.wz-aircraft-title__text, .wz-naval-title__text {
+.wz-aircraft-title__text,
+.wz-naval-title__text {
     display: inline-block;
     padding-top: .3rem;
 }
 
 
-.is-active.is-selected.wz-aircraft-item:before, .is-active.is-selected.wz-naval-item:before,
-.wz-aircraft-item.is-selected .wz-aircraft-title__text, .wz-naval-item.is-selected .wz-naval-title__text {
+.is-active.is-selected.wz-aircraft-item:before,
+.is-active.is-selected.wz-naval-item:before,
+.wz-aircraft-item.is-selected .wz-aircraft-title__text,
+.wz-naval-item.is-selected .wz-naval-title__text {
     animation: wz-animate-pulse 1s infinite;
 }
 
@@ -5703,7 +5817,7 @@ body.wz-intel-wire-detail-open {
 
 @media (max-width: 600px) {
     .wz-intel-wire-detail-modal {
-    padding: 1.2rem 1.2rem 1rem;
+        padding: 1.2rem 1.2rem 1rem;
     }
 
     .wz-intel-wire-detail__box {
@@ -5867,7 +5981,8 @@ body.wz-intel-wire-detail-open {
     color: var(--color-text-heading);
     font-family: var(--heading-font), sans-serif;
     font-size: var(--text-lg);
-    line-height: 1.8rem;;
+    line-height: 1.8rem;
+    ;
     letter-spacing: 0.1rem;
     text-overflow: ellipsis;
 }
@@ -6854,7 +6969,8 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
     visibility: visible;
 }
 
-#warzone-gnss-panel, :is(#warzone-notice-panel,#warzone-notice-popup) {
+#warzone-gnss-panel,
+:is(#warzone-notice-panel, #warzone-notice-popup) {
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -6923,7 +7039,7 @@ body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
 }
 
 .wz-widget-header .wz-widget-kicker .wz-widget-title {
-flex: 1;
+    flex: 1;
     min-width: 0;
     margin: 0;
     overflow: hidden;
@@ -6960,13 +7076,13 @@ flex: 1;
 
 .wz-widget-milbase .wz-widget-body ul {
     gap: .5rem
- }
+}
 
- .wz-widget-milbase .wz-widget-body ul li {
+.wz-widget-milbase .wz-widget-body ul li {
     padding: 1rem 1rem .7rem;
     background: var(--color-bg-row);
     clip-path: var(--clippath-shape-3);
- }
+}
 
 .wz-gnss-popup__dot {
     display: inline-block;
@@ -6976,11 +7092,25 @@ flex: 1;
     flex-shrink: 0;
 }
 
-.wz-gnss-popup__dot--low { color: var(--gnss-legend-fill-low); }
-.wz-gnss-popup__dot--medium { color: var(--gnss-legend-fill-medium); }
-.wz-gnss-popup__dot--high { color: var(--gnss-legend-fill-high); }
-.wz-gnss-popup__dot--severe { color: var(--gnss-legend-fill-severe); }
-.wz-gnss-popup__dot--unknown { color: var(--gnss-legend-fill-unknown); }
+.wz-gnss-popup__dot--low {
+    color: var(--gnss-legend-fill-low);
+}
+
+.wz-gnss-popup__dot--medium {
+    color: var(--gnss-legend-fill-medium);
+}
+
+.wz-gnss-popup__dot--high {
+    color: var(--gnss-legend-fill-high);
+}
+
+.wz-gnss-popup__dot--severe {
+    color: var(--gnss-legend-fill-severe);
+}
+
+.wz-gnss-popup__dot--unknown {
+    color: var(--gnss-legend-fill-unknown);
+}
 
 .milbase-panel__dot {
     display: inline-block;
@@ -7022,7 +7152,7 @@ flex: 1;
 }
 
 .wz-reset-orientation {
-position: fixed;
+    position: fixed;
     right: 2.5rem;
     top: 50%;
     z-index: 5;
@@ -7035,7 +7165,7 @@ position: fixed;
     border-radius: 50%;
     font-size: 5.5rem;
     z-index: 200;
-transform-origin: center center;
+    transform-origin: center center;
     animation: autoRotateCycle 8s linear infinite;
 }
 
@@ -7044,7 +7174,9 @@ transform-origin: center center;
 }
 
 @keyframes autoRotateCycle {
-    0%, 37.5% {
+
+    0%,
+    37.5% {
         transform: rotate(0deg);
     }
 
@@ -7052,7 +7184,8 @@ transform-origin: center center;
         transform: rotate(720deg);
     }
 
-    75.01%, 100% {
+    75.01%,
+    100% {
         transform: rotate(720deg);
     }
 }
@@ -7322,94 +7455,464 @@ body:not(.is-operational-report-open) .warzone-view {
 /* #endregion */
 
 /* Scoped intelligence widgets; country summaries and report details are siblings. */
-#airspace-status-list, #cyber-status-list {
+#airspace-status-list,
+#cyber-status-list {
     grid-template-columns: repeat(var(--wz-status-columns, 1), minmax(0, 1fr));
     align-items: start;
 }
-.wz-status-summary, .wz-status-details { display: grid; gap: .7rem; min-width: 0; }
+
+.wz-status-summary,
+.wz-status-details {
+    display: grid;
+    gap: .7rem;
+    min-width: 0;
+}
+
 #airspace-status-list .wz-status-report {
-    min-width: 0; background: var(--color-bg-row); color: var(--color-text-heading);
+    min-width: 0;
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
     clip-path: var(--clippath-shape-1);
 }
-#airspace-status-list .status-pill--reported { background: var(--wz-airspace-reported-color);  }
-#cyber-status-list .status-pill--reported { background: var(--wz-cyber-reported-color);  }
-.wz-cyber-status-icon { width: var(--wz-cyber-icon-size); height: var(--wz-cyber-icon-size); vertical-align: middle; }
-.wz-cyber-status-caption { color: var(--wz-cyber-reported-color); font-size: var(--text-xs); }
-.wz-status-report__head { flex-wrap: wrap; }
-.wz-status-report__head strong { flex: 1 1 10rem; }
+
+#airspace-status-list .status-pill--reported {
+    background: var(--wz-airspace-reported-color);
+}
+
+#cyber-status-list .status-pill--reported {
+    background: var(--wz-cyber-reported-color);
+}
+
+.wz-cyber-status-icon {
+    width: var(--wz-cyber-icon-size);
+    height: var(--wz-cyber-icon-size);
+    vertical-align: middle;
+}
+
+.wz-cyber-status-caption {
+    color: var(--wz-cyber-reported-color);
+    font-size: var(--text-xs);
+}
+
+.wz-status-report__head {
+    flex-wrap: wrap;
+}
+
+.wz-status-report__head strong {
+    flex: 1 1 10rem;
+}
 
 /* Published notice list and compact click popup retain the existing widget shell. */
-:is(#warzone-notice-panel,#warzone-notice-popup) { width: var(--wz-notice-panel-width); max-height: var(--wz-notice-panel-max-height); }
-:is(#warzone-notice-panel,#warzone-notice-popup).wz-notice-popup { width: var(--wz-notice-popup-width); }
-:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-milbase { min-height: 0; max-height: inherit; width: 100%; }
-:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-body { min-height: 0; overflow-y: auto; padding: 1.2rem; }
-:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-body[hidden] { display: none; }
-:is(#warzone-notice-panel,#warzone-notice-popup) h3 { margin: 0 0 1rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
-.wz-notice-controls, .wz-notice-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .6rem; margin: 1rem 0; }
-:is(#warzone-notice-panel,#warzone-notice-popup) button:not(.static-icon), .wz-notice-controls select {
-    min-width: 0; max-width: 100%; width: 100%; white-space: normal;
-    font-size: var(--text-xs); padding: .7rem; height: auto; min-height: 3rem;
+:is(#warzone-notice-panel, #warzone-notice-popup) {
+    width: var(--wz-notice-panel-width);
+    max-height: var(--wz-notice-panel-max-height);
 }
-.wz-notice-controls select { background: var(--color-bg-row); color: var(--color-text-heading); border: 1px solid var(--color-text-dim); }
-.wz-notice-cards { display: grid; gap: 1rem; }
-.wz-notice-card { padding: 1rem; background: var(--color-bg-row); clip-path: var(--clippath-shape-1); }
-.wz-notice-card__head { display: flex; justify-content: space-between; align-items: start; gap: .5rem; }
-.wz-notice-card__head .status-pill { min-width: 0; height: auto; padding: .3rem .6rem; font-size: var(--text-xs); }
-.wz-notice-card p, .wz-notice-summary { font-size: var(--text-xs); color: var(--color-text-dim); line-height: 1.5; overflow-wrap: anywhere; margin: .8rem 0; }
-:is(#warzone-notice-panel,#warzone-notice-popup) details > summary { cursor: pointer; color: var(--color-teal-glow); font-size: var(--text-xs); padding: .7rem 0; }
-:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-data-list li { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: .6rem; overflow-wrap: anywhere; }
-:is(#warzone-notice-panel,#warzone-notice-popup) .wz-widget-data-list { font-size: var(--text-xs); }
+
+:is(#warzone-notice-panel, #warzone-notice-popup).wz-notice-popup {
+    width: var(--wz-notice-popup-width);
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-milbase {
+    min-height: 0;
+    max-height: inherit;
+    width: 100%;
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-body[hidden] {
+    display: none;
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) h3 {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.wz-notice-controls, .wz-notice-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+    margin: 1.5rem 0 0;
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) button:not(.static-icon),
+.wz-notice-controls select {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    white-space: normal;
+}
+
+.wz-notice-controls select {
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
+    border: 1px solid var(--color-text-dim);
+}
+
+.wz-notice-cards {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.wz-notice-card {
+    padding: 1rem;
+    background: var(--color-bg-row);
+    clip-path: var(--clippath-shape-1);
+}
+
+.wz-notice-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: .5rem;
+}
+
+.wz-notice-card__head strong {
+    font-size: var(--text-lg)
+}
+
+.wz-notice-card p {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    margin: 1rem 0;
+    background: var(--color-bg-row);
+    padding: 1rem 1.2rem;
+    clip-path: var(--clippath-shape-3);
+}
+
+ .wz-notice-summary {
+    font-size: var(--text-sm);
+    color: var(--color-text-dim);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    margin: 0;
+    background: var(--color-bg-row);
+    padding: 1rem 1.2rem;
+    clip-path: var(--clippath-shape-3);
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) details>summary {
+    cursor: pointer;
+    color: var(--color-teal-glow);
+    font-size: var(--text-sm);
+    padding: 0 0 1rem;
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-data-list li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: .5rem;
+    overflow-wrap: anywhere;
+}
+
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-data-list {
+    font-size: var(--text-xs);
+}
+
 /* Replaceable SVG for genuine geolocated cyber event markers, using existing ownership/picking. */
 .wzhs[data-category="cyber"] .wzhs__icon span::before {
-    content: ""; display: block; width: var(--wz-cyber-icon-size); height: var(--wz-cyber-icon-size);
+    content: "";
+    display: block;
+    width: var(--wz-cyber-icon-size);
+    height: var(--wz-cyber-icon-size);
     background: url('/assets/images/markers/cyber-status.svg') center / contain no-repeat;
 }
 
 /* Informational intelligence states complement the existing severity palette. */
 .status-pill--monitoring,
 .status-pill--advisory {
-    color: var(--color-blue-glow); background: var(--color-bg-row);
+    color: var(--color-blue-glow);
+    background: var(--color-bg-row);
 }
 
-:is(#warzone-notice-panel,#warzone-notice-popup).wz-notice-preview { width: var(--wz-notice-preview-max-width); min-width: min(var(--wz-notice-preview-min-width),calc(100vw - 2rem)); }
-.wz-notice-preview .wz-notice-summary { white-space: pre-line; }
-.wz-notice-capture { position: fixed; z-index: 10000; background: rgba(0,0,0,var(--wz-notice-capture-overlay-opacity)); overflow: hidden; cursor: crosshair; touch-action: none; user-select: none; }
-.wz-notice-capture.has-selection { background: transparent; }
-.wz-notice-capture__selection { position: absolute; box-sizing: border-box; border: var(--wz-notice-capture-border-width) solid var(--wz-notice-capture-border-color); box-shadow: 0 0 0 100vmax rgba(0,0,0,var(--wz-notice-capture-overlay-opacity)); cursor: move; }
-.wz-notice-capture__resize { position: absolute; bottom: -3px; right: -3px; width: 14px; height: 14px; background: var(--wz-notice-capture-border-color); cursor: nwse-resize; }
-.wz-notice-capture__toolbar { position: absolute; width: max-content; max-width: min(58rem,calc(100% - 2rem)); box-sizing: border-box; max-height: calc(100% - 2rem); overflow-y: auto; display: flex; flex-wrap: wrap; gap: .6rem; padding: 1rem; background: var(--color-bg-header); color: var(--color-text-heading); cursor: default; }
-.wz-notice-capture__toolbar span { flex: 1 0 100%; font-size: var(--text-xs); }
-.wz-notice-capture__toolbar button { flex: 1; min-width: 6rem; }
-.wz-notice-capture__toolbar select { min-width: 0; max-width: 100%; font-size: var(--text-xs); padding: .7rem; background: var(--color-bg-row); color: var(--color-text-heading); border: 1px solid var(--color-text-dim); }
-.wz-notice-capture.is-drawing .wz-notice-capture__selection { cursor: crosshair; }
-.wz-notice-preview-leader { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 17; overflow: visible; }
-.wz-notice-preview-leader line { stroke: var(--wz-notice-line-color); stroke-width: var(--wz-notice-line-width); }
+:is(#warzone-notice-panel, #warzone-notice-popup).wz-notice-preview {
+    width: var(--wz-notice-preview-max-width);
+    min-width: min(var(--wz-notice-preview-min-width), calc(100vw - 2rem));
+}
+
+.wz-notice-preview .wz-notice-summary {
+    white-space: pre-line;
+}
+
+.wz-notice-capture {
+    position: fixed;
+    z-index: 10000;
+    background: rgba(0, 0, 0, var(--wz-notice-capture-overlay-opacity));
+    overflow: hidden;
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+}
+
+.wz-notice-capture.has-selection {
+    background: transparent;
+}
+
+.wz-notice-capture__selection {
+    position: absolute;
+    box-sizing: border-box;
+    border: var(--wz-notice-capture-border-width) solid var(--wz-notice-capture-border-color);
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, var(--wz-notice-capture-overlay-opacity));
+    cursor: move;
+}
+
+.wz-notice-capture__resize {
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    width: 14px;
+    height: 14px;
+    background: var(--wz-notice-capture-border-color);
+    cursor: nwse-resize;
+}
+
+.wz-notice-capture__toolbar {
+    position: absolute;
+    width: max-content;
+    max-width: min(58rem, calc(100% - 2rem));
+    box-sizing: border-box;
+    max-height: calc(100% - 2rem);
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    padding: 1rem;
+    background: var(--color-bg-header);
+    color: var(--color-text-heading);
+    cursor: default;
+}
+
+.wz-notice-capture__toolbar span {
+    flex: 1 0 100%;
+    font-size: var(--text-xs);
+}
+
+.wz-notice-capture__toolbar button {
+    flex: 1;
+    min-width: 6rem;
+}
+
+.wz-notice-capture__toolbar select {
+    min-width: 0;
+    max-width: 100%;
+    font-size: var(--text-xs);
+    padding: .7rem;
+    background: var(--color-bg-row);
+    color: var(--color-text-heading);
+    border: 1px solid var(--color-text-dim);
+}
+
+.wz-notice-capture.is-drawing .wz-notice-capture__selection {
+    cursor: crosshair;
+}
+
+.wz-notice-preview-leader {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 17;
+    overflow: visible;
+}
+
+.wz-notice-preview-leader line {
+    stroke: var(--wz-notice-line-color);
+    stroke-width: var(--wz-notice-line-width);
+}
 
 /* Measured only during PNG export; never mounted in normal globe interaction. */
-.notam-export { position: fixed; left: -100000px; top: 0; visibility: hidden; pointer-events: none; contain: layout style; font-family: var(--notam-export-font-family); }
-.notam-export, .notam-export * { box-sizing: border-box; margin: 0; border: 0; padding: 0; background: transparent; text-shadow: none; }
-.notam-export img { position: absolute; display: block; object-fit: contain; }
-.notam-export__stratops-logo { width: var(--notam-export-top-logo-width); height: var(--notam-export-top-logo-height); max-height: var(--notam-export-top-logo-max-height); top: var(--notam-export-top-logo-top); left: 50%; transform: translateX(-50%); opacity: var(--notam-export-top-logo-opacity); }
-.notam-export__timestamp { position: absolute; top: var(--notam-export-time-top); right: var(--notam-export-time-right); color: var(--notam-export-time-color); font-size: var(--notam-export-time-size); font-weight: var(--notam-export-time-weight); letter-spacing: var(--notam-export-time-spacing); line-height: var(--notam-export-time-line-height); white-space: nowrap; }
-.notam-export__intelligence { position: absolute; left: var(--notam-export-info-left); bottom: var(--notam-export-info-bottom); width: var(--notam-export-info-width); max-width: calc(100% - var(--notam-export-info-left) - var(--notam-export-bottom-logo-right) - var(--notam-export-bottom-logo-width) - var(--notam-export-info-gap)); display: flex; flex-direction: column; align-items: flex-start; gap: var(--notam-export-info-gap); text-transform: uppercase; }
-.notam-export__identifier { color: var(--notam-export-id-color); font-size: var(--notam-export-id-size); font-weight: var(--notam-export-id-weight); letter-spacing: var(--notam-export-id-spacing); line-height: var(--notam-export-id-line-height); }
-.notam-export__type { background: var(--notam-export-label-bg); color: var(--notam-export-label-color); font-size: var(--notam-export-label-size); font-weight: var(--notam-export-label-weight); line-height: var(--notam-export-label-line-height); letter-spacing: var(--notam-export-label-spacing); padding: var(--notam-export-label-padding); clip-path: var(--notam-export-label-clip); }
-.notam-export__details { width: 100%; margin-top: var(--notam-export-details-gap); color: var(--notam-export-details-color); font-size: var(--notam-export-details-size); font-weight: var(--notam-export-details-weight); line-height: var(--notam-export-details-line-height); letter-spacing: var(--notam-export-details-spacing); overflow-wrap: anywhere; }
-.notam-export__detail, .notam-export__identifier { max-width: 100%; overflow-wrap: anywhere; }
-.notam-export__battlespacex-logo { width: var(--notam-export-bottom-logo-width); height: var(--notam-export-bottom-logo-height); max-height: var(--notam-export-bottom-logo-max-height); right: var(--notam-export-bottom-logo-right); bottom: var(--notam-export-bottom-logo-bottom); opacity: var(--notam-export-bottom-logo-opacity); }
-.notam-export__source { position: absolute; left: var(--notam-export-source-left); bottom: var(--notam-export-source-bottom); max-width: calc(100% - var(--notam-export-source-left) - var(--notam-export-bottom-logo-width) - var(--notam-export-bottom-logo-right)); color: var(--notam-export-source-color); font-size: var(--notam-export-source-size); font-weight: var(--notam-export-source-weight); letter-spacing: var(--notam-export-source-spacing); line-height: 1.4; overflow-wrap: anywhere; }
-.notam-export .notam-export__marker { position: absolute; transform: translate(-50%,-50%); width: var(--notam-export-marker-size); height: var(--notam-export-marker-size); border: var(--notam-export-marker-width) solid var(--notam-export-marker-color); opacity: var(--notam-export-marker-opacity); clip-path: var(--notam-export-marker-clip); }
+.notam-export {
+    position: fixed;
+    left: -100000px;
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+    contain: layout style;
+    font-family: var(--notam-export-font-family);
+}
+
+.notam-export,
+.notam-export * {
+    box-sizing: border-box;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    text-shadow: none;
+}
+
+.notam-export img {
+    position: absolute;
+    display: block;
+    object-fit: contain;
+}
+
+.notam-export__stratops-logo {
+    width: var(--notam-export-top-logo-width);
+    height: var(--notam-export-top-logo-height);
+    max-height: var(--notam-export-top-logo-max-height);
+    top: var(--notam-export-top-logo-top);
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: var(--notam-export-top-logo-opacity);
+}
+
+.notam-export__timestamp {
+    position: absolute;
+    top: var(--notam-export-time-top);
+    right: var(--notam-export-time-right);
+    color: var(--notam-export-time-color);
+    font-size: var(--notam-export-time-size);
+    font-weight: var(--notam-export-time-weight);
+    letter-spacing: var(--notam-export-time-spacing);
+    line-height: var(--notam-export-time-line-height);
+    white-space: nowrap;
+}
+
+.notam-export__intelligence {
+    position: absolute;
+    left: var(--notam-export-info-left);
+    bottom: var(--notam-export-info-bottom);
+    width: var(--notam-export-info-width);
+    max-width: calc(100% - var(--notam-export-info-left) - var(--notam-export-bottom-logo-right) - var(--notam-export-bottom-logo-width) - var(--notam-export-info-gap));
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--notam-export-info-gap);
+    text-transform: uppercase;
+}
+
+.notam-export__identifier {
+    color: var(--notam-export-id-color);
+    font-size: var(--notam-export-id-size);
+    font-weight: var(--notam-export-id-weight);
+    letter-spacing: var(--notam-export-id-spacing);
+    line-height: var(--notam-export-id-line-height);
+}
+
+.notam-export__type {
+    background: var(--notam-export-label-bg);
+    color: var(--notam-export-label-color);
+    font-size: var(--notam-export-label-size);
+    font-weight: var(--notam-export-label-weight);
+    line-height: var(--notam-export-label-line-height);
+    letter-spacing: var(--notam-export-label-spacing);
+    padding: var(--notam-export-label-padding);
+    clip-path: var(--notam-export-label-clip);
+}
+
+.notam-export__details {
+    width: 100%;
+    margin-top: var(--notam-export-details-gap);
+    color: var(--notam-export-details-color);
+    font-size: var(--notam-export-details-size);
+    font-weight: var(--notam-export-details-weight);
+    line-height: var(--notam-export-details-line-height);
+    letter-spacing: var(--notam-export-details-spacing);
+    overflow-wrap: anywhere;
+}
+
+.notam-export__detail,
+.notam-export__identifier {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.notam-export__battlespacex-logo {
+    width: var(--notam-export-bottom-logo-width);
+    height: var(--notam-export-bottom-logo-height);
+    max-height: var(--notam-export-bottom-logo-max-height);
+    right: var(--notam-export-bottom-logo-right);
+    bottom: var(--notam-export-bottom-logo-bottom);
+    opacity: var(--notam-export-bottom-logo-opacity);
+}
+
+.notam-export__source {
+    position: absolute;
+    left: var(--notam-export-source-left);
+    bottom: var(--notam-export-source-bottom);
+    max-width: calc(100% - var(--notam-export-source-left) - var(--notam-export-bottom-logo-width) - var(--notam-export-bottom-logo-right));
+    color: var(--notam-export-source-color);
+    font-size: var(--notam-export-source-size);
+    font-weight: var(--notam-export-source-weight);
+    letter-spacing: var(--notam-export-source-spacing);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.notam-export .notam-export__marker {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: var(--notam-export-marker-size);
+    height: var(--notam-export-marker-size);
+    border: var(--notam-export-marker-width) solid var(--notam-export-marker-color);
+    opacity: var(--notam-export-marker-opacity);
+    clip-path: var(--notam-export-marker-clip);
+}
 
 /* Separate reported naval activity panel; live tracker styling remains unchanged. */
-.wz-naval-intel { position: fixed; right: 2rem; top: 12rem; width: min(32rem,calc(100vw - 2rem)); max-height: 55vh; z-index: 18; }
-.wz-naval-intel .wz-widget-milbase { width: 100%; max-height: inherit; }
-.wz-naval-intel .wz-widget-body { overflow-y: auto; padding: 1rem; }
-.wz-naval-intel .wz-notice-card { padding: 1rem; border-bottom: 1px solid var(--color-bg-row); overflow-wrap: anywhere; }
-.wz-naval-intel .wz-notice-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
-.wz-naval-intel a, .wz-naval-intel summary { color: var(--color-teal-glow); }
+.wz-naval-intel {
+    position: fixed;
+    right: 2rem;
+    top: 12rem;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: 55vh;
+    z-index: 18;
+}
+
+.wz-naval-intel .wz-widget-milbase {
+    width: 100%;
+    max-height: inherit;
+}
+
+.wz-naval-intel .wz-widget-body {
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.wz-naval-intel .wz-notice-card {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-bg-row);
+    overflow-wrap: anywhere;
+}
+
+.wz-naval-intel .wz-notice-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.wz-naval-intel a,
+.wz-naval-intel summary {
+    color: var(--color-teal-glow);
+}
 
 /* NOTAM selection retains the floating widget while its geographic popup is open. */
-#warzone-notice-panel { transition: opacity 200ms ease, visibility 200ms ease; }
-#warzone-notice-panel[aria-hidden="true"] { opacity: 0; visibility: hidden; pointer-events: none; }
-#warzone-notice-popup { position: fixed; z-index: 19; user-select: text; }
-#warzone-notice-popup .wz-widget-header { cursor: default; touch-action: auto; }
+#warzone-notice-panel {
+    transition: opacity 200ms ease, visibility 200ms ease;
+}
+
+#warzone-notice-panel[aria-hidden="true"] {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+#warzone-notice-popup {
+    position: fixed;
+    z-index: 19;
+    user-select: text;
+}
+
+#warzone-notice-popup .wz-widget-header {
+    cursor: default;
+    touch-action: auto;
+}

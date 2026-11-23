@@ -1,4 +1,5 @@
-﻿import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import * as RealCesium from 'cesium';
+﻿import {installNoticeTemplates} from './notice-template-dom.js';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import * as RealCesium from 'cesium';
 import {noticeGeometryPoints,noticeStatus,validateGeometry,intersectsBounds,containsNotice} from '../../shared/geospatial-notices.js';
 const code=fs.readFileSync(new URL('../../../dev/assets/js/warzone-notice-capture.js',import.meta.url),'utf8');
 function harness({logoError=false,taint=false,offscreen=false}={}){
@@ -10,11 +11,19 @@ function harness({logoError=false,taint=false,offscreen=false}={}){
   copyNextSceneFrame:async(_viewer,fn)=>{fn?.();return sceneCanvas;},assertCaptureReadable(){if(taint)throw Error('Canvas security blocked');},loadImage:async url=>{if(logoError)throw Error('Logo unavailable');const image={src:url,naturalWidth:400,naturalHeight:80};logos.push(image);return image;},downloadBlob:(blob,name)=>downloads.push({blob,name}),canUseSavePicker:()=>false,
   getComputedStyle:()=>({getPropertyValue:name=>name==='--wz-notice-export-max-pixels'?'16000000':''}),Blob,document:{documentElement:{},querySelectorAll:()=>[],createElement:tag=>{const el=new Element(tag);if(tag==='canvas')canvases.push(el);return el;},body:{append:el=>elements.push(el)},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},
   window:{addEventListener:(name,fn)=>windowListeners.set(name,fn),removeEventListener:name=>windowListeners.delete(name)}});
+installNoticeTemplates(c);
  vm.runInContext(code.replace(/^\uFEFF/,'').replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),c);
  c.paintNoticeExport=async(...args)=>compositions.push(args);
  return {c,viewer,elements,canvases,listeners,windowListeners,downloads,logos,compositions,event(el,type,x,y,target=el){el.events.get(type)({type,target,clientX:x+20,clientY:y+40,pointerId:1,button:0,preventDefault(){},stopPropagation(){}});}};
 }
 const notice=()=>({id:'fixture',sourceId:'A0001/26',title:'NOTAM A0001/26',noticeType:'notam',country:'India',provider:'notac',geometry:{type:'Point',coordinates:[65,24]},effectiveFrom:new Date(Date.now()-60000).toISOString(),effectiveUntil:new Date(Date.now()+3600000).toISOString(),metadata:{}});
+
+test('capture labels can change without breaking action bindings or preset availability',()=>{
+ const h=harness(),cancel=h.c.startNoticeCapture(h.viewer,notice()),toolbar=h.elements[0].children[1];
+ const aspect=toolbar.querySelector('[data-action="aspect"]');assert.deepEqual(aspect.children.map(el=>el.getAttribute('value')),['1:1','16:9','9:16','custom']);
+ const draw=toolbar.querySelector('[data-action="draw"]');draw.setAttribute('data-resize-label','Adjust frame');draw.onclick();assert.equal(draw.textContent,'Adjust frame');
+ const stop=toolbar.querySelector('[data-action="cancel"]');stop.textContent='Close capture';stop.onclick();assert.equal(h.elements.length,0);assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);cancel();
+});
 test('capture rectangle clamps reverse drags and native crop preserves DPI, geography, branding and UTC',async()=>{
  const h=harness();assert.deepEqual(JSON.parse(JSON.stringify(h.c.captureRectangle({x:500,y:500},{x:-50,y:20},800,600))),{x:0,y:20,width:500,height:480});
  const blob=await h.c.composeNoticeCapture(h.viewer,notice(),{x:100,y:100,width:400,height:300});assert.equal(blob.type,'image/png');

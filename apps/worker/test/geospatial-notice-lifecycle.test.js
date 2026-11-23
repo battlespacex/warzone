@@ -1,3 +1,4 @@
+import {installNoticeTemplates} from './notice-template-dom.js';
 import * as RealCesium from 'cesium';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,10 +26,38 @@ function harness(fetchImpl){
         window:{__stratopsConfig:{apiBase:'https://staging.example.org'}},document:{createElement:tag=>new Element(tag),body:{append:el=>panels.push(el)},addEventListener(name,fn){events.set(name,fn);},removeEventListener(name){events.delete(name);}},navigator:{clipboard:{writeText(){}}},
         setTimeout(fn,delay){fn.delay=delay;timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),requestAnimationFrame(fn){frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
         performance,URLSearchParams,AbortController,fetch:fetchImpl});
-    vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
+    installNoticeTemplates(context);
+ vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
     return {context,enabled,viewer,sources,get panels(){return panels.filter(el=>el.style.opacity!=='0');},handlers,timers,frames,events,focus,restores,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
 }
 function openMore(h){h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='MORE').onclick();}
+
+test('templates keep provider markup as literal text across cards, preview and full provenance',async()=>{
+    const attack='<img src=x onerror="alert(1)"><script>bad()</script>';
+    const row={...n,sourceId:attack,title:attack,rawText:attack,summary:attack,sourceRecords:[{provider:attack,rawText:attack}]};
+    const h=harness(async()=>({ok:true,json:async()=>({notices:[row],total:1})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    const main=h.panels[0],card=main.querySelector('.wz-notice-card');
+    assert.equal(card.querySelector('[data-field="title"]').textContent,attack);assert.equal(card.querySelector('img'),null);
+    h.handlers[0].click({position:{x:100,y:100}});
+    const popup=h.panels[0];assert.equal(popup.id,'warzone-notice-popup');assert.ok(popup.querySelector('[data-field="validity"]'));
+    const more=popup.querySelector('[data-action="more"]');more.textContent='Read full bulletin';more.onclick();
+    assert.equal(popup.querySelector('[data-field="Original notice"]').textContent,attack);
+    assert.equal(popup.querySelector('script'),null);assert.equal(popup.querySelector('img'),null);
+    const provenance=popup.querySelector('ul').children.at(-1);assert.equal(provenance.children[1].textContent,attack);
+    const back=popup.querySelector('[data-action="back"]');back.textContent='Return to bulletins';back.onclick();assert.equal(h.panels[0],main);
+    h.context.disposeNoticeLayers();
+});
+
+test('template controls retain pagination, filter requests and distinct panel identities',async()=>{
+    const queries=[];const h=harness(async url=>{queries.push(new URL(url).searchParams);return {ok:true,json:async()=>({notices:[n],total:450})};});
+    h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+    assert.equal(h.panels[0].id,'warzone-notice-panel');assert.equal(h.panels[0].querySelector('[data-action="previous"]'),null);
+    h.panels[0].querySelector('[data-action="next"]').onclick();await h.settle();assert.equal(queries.at(-1).get('offset'),'200');
+    h.panels[0].querySelector('[data-action="previous"]').onclick();await h.settle();assert.equal(queries.at(-1).get('offset'),'0');
+    const status=h.panels[0].querySelector('[data-action="status"]');status.value='all';status.onchange();await h.settle();assert.equal(queries.at(-1).get('status'),'all');
+    h.panels[0].querySelector('[data-action="coverage"]').onclick();await h.settle();assert.equal(queries.at(-1).get('military'),'related');
+    h.context.disposeNoticeLayers();
+});
 const n={id:'test:1',sourceId:'001/26',title:'Fixture only',sourceUrl:'https://example.org/notices',noticeType:'notam',isMilitaryRelated:true,status:'active',rawText:'Test fixture',metadata:{},geometry:{type:'Polygon',coordinates:[[[65,24],[66,24],[66,25],[65,24]]]}};
 test('restored unconfigured notices stay silent and do not refetch on region entry; explicit user opening remains available',async()=>{
     let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({state:'unconfigured',notices:[]})};});
@@ -54,7 +83,7 @@ test('metadata refresh preserves notice geometry, drag binding, collapsed widget
     let row=n,binds=0;const h=harness(async()=>({ok:true,json:async()=>({notices:[row],total:1})}));h.enabled.add('aviation-notam');
     h.context.initNoticeLayers(h.viewer,{bindFloatingPanel:()=>{binds++;}});await h.settle();
     const entity=h.sources[0].entities.values[0],panel=h.panels[0],before=binds;
-    panel.querySelector('.wz-widget-header-actions').children[0].onclick();
+    panel.querySelector('[data-action="collapse"]').onclick();
     row={...n,metadata:{lastUpdated:'new timestamp'},rawText:'Updated original notice'};h.tick();await h.settle();
     assert.equal(h.sources[0].entities.values[0],entity);assert.equal(h.panels[0],panel);assert.equal(binds,before);assert.equal(panel.querySelector('.wz-widget-body').hidden,true);
     const cards=panel.querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-cards');cards.children[0].children.find(el=>el.textContent==='View notice').onclick();
@@ -86,7 +115,7 @@ test('unconfigured/empty/error states contain no fabricated notice fields and us
     for(const [payload,status,title]of [[{state:'unconfigured',notices:[]},200,'No permitted provider configured'],[{state:'ready',notices:[]},200,'No notices in selected area'],[{},403,'Notice access denied'],[{},503,'Provider temporarily unavailable']]){
         let binds=0,disposals=0;const h=harness(async()=>({ok:status===200,status,json:async()=>payload}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{bindFloatingPanel:()=>{binds++;return ()=>disposals++;}});await h.settle();
         assert.equal(h.panels[0].querySelector('h3').textContent,title);assert.equal(h.panels[0].querySelector('ul').children.length,0);assert.ok(binds>=1);
-        const collapse=h.panels[0].querySelector('.wz-widget-header-actions').children[0];collapse.onclick();assert.equal(h.panels[0].querySelector('.wz-widget-body').hidden,true);collapse.onclick();assert.equal(h.panels[0].querySelector('.wz-widget-body').hidden,false);
+        const collapse=h.panels[0].querySelector('[data-action="collapse"]');collapse.onclick();assert.equal(h.panels[0].querySelector('.wz-widget-body').hidden,true);collapse.onclick();assert.equal(h.panels[0].querySelector('.wz-widget-body').hidden,false);
         assert.ok(parseFloat(h.panels[0].style.left)>320,'default placement clears a left-side Map Layers panel');
         h.context.disposeNoticeLayers();assert.equal(disposals,binds);assert.equal(h.panels.length,0);
     }
@@ -256,7 +285,7 @@ test('anchored selection retains the main DOM, binds no popup drag, follows came
  for(const point of [{x:-10,y:300},{x:1600,y:300},{x:400,y:-20},{x:400,y:1000},null]){
   let binds=0;const h=anchoredHarness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{bindFloatingPanel:()=>{binds++;}});await h.settle();
   const main=h.panels[0],before=binds;main.querySelector('.wz-widget-body').scrollTop=123;h.handlers[0].click({position:{x:400,y:300}});const popup=h.position();
-  assert.equal(binds,before);assert.equal(main.style.opacity,'0');assert.equal(popup.id,'warzone-notice-popup');assert.equal(popup.querySelector('.wz-widget-header-actions').children.length,0);assert.equal(h.render.numberOfListeners,1);
+  assert.equal(binds,before);assert.equal(main.style.opacity,'0');assert.equal(popup.id,'warzone-notice-popup');assert.equal(popup.querySelector('[data-action="collapse"]'),null);assert.ok(popup.querySelector('[data-action="close"]'));assert.equal(h.render.numberOfListeners,1);
   h.setPoint({x:500,y:400});h.render.raiseEvent();assert.equal(popup.style.left,'516px');assert.equal(popup.style.top,'382px');assert.equal(h.panels[0],popup);
   if(point)h.setPoint(point);else h.hideAnchor();h.render.raiseEvent();assert.equal(h.panels[0],main);assert.equal(main.querySelector('.wz-widget-body').scrollTop,123);assert.equal(h.render.numberOfListeners,0);
   h.context.disposeNoticeLayers();assert.equal(h.panels.length,0);

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#080b0e">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <title>Data Intelligence | StratOps OSINT</title>
+  <meta name="description"
+    content="How StratOps interprets public aircraft, maritime, satellite, airspace, GNSS and conflict information, including observation age, confidence and limits.">
+  <link rel="canonical" href="<%= domains.publicOrigin %>/intelligence/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="StratOps by BattlespaceX">
+  <meta property="og:title" content="Data Intelligence | StratOps OSINT">
+  <meta property="og:description"
+    content="How StratOps interprets public aircraft, maritime, satellite, airspace, GNSS and conflict information, including observation age, confidence and limits.">
+  <meta property="og:url" content="<%= domains.publicOrigin %>/intelligence/">
+  <meta property="og:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Data Intelligence | StratOps OSINT">
+  <meta name="twitter:description"
+    content="How StratOps interprets public aircraft, maritime, satellite, airspace, GNSS and conflict information, including observation age, confidence and limits.">
+  <meta name="twitter:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
+</head>
+
+<body class="stratops-public stratops-subpage page-intelligence">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
+  <%= partials("icons") %>
+    <%= partials("header") %>
+      <main id="main" tabindex="-1">
+        <section class="page-banner banner--full" aria-labelledby="page-title">
+          <div class="banner-media">
+            <div class="img-slot is-placeholder " data-slot="MTH-BANNER" role="img"
+              aria-label="Image placeholder MTH-BANNER"><span class="slot-label"><b>IMAGE SLOT MTH-BANNER</b><i>banner,
+                  cover · 2400×1200+</i><em>Wide hero image: layered data / provenance visual (technical typography,
+                  radar rings, coordinates). Focal point on the right.</em></span></div>
+          </div>
+          <div class="banner-shade" aria-hidden="true"></div>
+          <div class="shell banner-inner">
+            <div class="banner-tag"><span>FILE / INTELLIGENCE</span><span>EVIDENCE · PROVENANCE · LIMITS</span></div>
+            <div class="banner-copy" data-reveal>
+              <p class="eyebrow">HOW TO READ WHAT YOU SEE</p>
+              <h1 id="page-title" class="display-heading">READ THE MAP<br><span>LIKE AN ANALYST</span></h1>
+              <p class="banner-lead">A marker is the end of a chain: a source, a time, a method and some uncertainty.
+                This page opens the chain, so you know what each symbol can and cannot support.</p>
+            </div>
+
+            <div class="banner-dock">
+              <span class="dock-chip">
+                <i class="font-icon stratops-ico-focus-1" aria-hidden="true"></i>
+                <span class="title">Observed</span>
+                <em>a sensor saw it</em>
+              </span>
+
+              <span class="dock-chip">
+                <i class="font-icon stratops-ico-assets-alert-1" aria-hidden="true"></i>
+                 <span class="title">Reported</span>
+                 <em>a source said it</em>
+              </span>
+
+              <span class="dock-chip">
+                <i class="font-icon stratops-ico-circle-1" aria-hidden="true"></i>
+                <span class="title">Predicted</span>
+                <em>a model calculated it</em>
+              </span>
+            </div>
+          </div>
+        </section>
+        <section class="section shell" id="evidence">
+          <div data-reveal>
+            <p class="sec-tag">THREE KINDS OF EVIDENCE</p>
+          </div>
+          <div class="section-heading-row" data-reveal>
+            <h2 class="display-heading">NOT EVERY MARKER<br><span>MEANS THE SAME THING</span></h2>
+            <p class="section-aside">The same globe holds different kinds of information. Each has its own failure
+              modes, and StratOps keeps them visibly apart.</p>
+          </div>
+          <div class="evidence-trio">
+            <article class="ev-card clippath-1" data-reveal>
+              <figure class="fig">
+                <div class="img-slot is-placeholder r-16x9 " data-slot="MTH-OBS" role="img"
+                  aria-label="Image placeholder MTH-OBS"><span class="slot-label"><b>IMAGE SLOT MTH-OBS</b><i>16:9 ·
+                      1600×900</i><em>A selected aircraft or vessel with source, age and identity confidence
+                      visible.</em></span></div>
+                <figcaption class="fig-cap"><b>FIG</b><span>Observed</span></figcaption>
+              </figure>
+              <h3>
+                <i class="font-icon stratops-ico-circle-1" aria-hidden="true"></i>
+                Observed
+                <span>A sensor network saw it.</span>
+              </h3>
+              <dl>
+                <dt>What it is</dt>
+                <dd>A position or measurement from a network: aircraft ADS-B messages, vessel AIS broadcasts, GNSS
+                  accuracy samples.</dd>
+                <dt>Where it breaks</dt>
+                <dd>Coverage gaps, delayed aggregation, stale or misleading broadcasts, ambiguous identity.</dd>
+                <dt>How StratOps shows it</dt>
+                <dd>Source, time of the last observation and identity confidence on the selected contact.</dd>
+              </dl>
+            </article>
+            <article class="ev-card clippath-1" data-reveal>
+              <figure class="fig">
+                <div class="img-slot is-placeholder r-16x9 " data-slot="MTH-REP" role="img"
+                  aria-label="Image placeholder MTH-REP"><span class="slot-label"><b>IMAGE SLOT MTH-REP</b><i>16:9 ·
+                      1600×900</i><em>A notice or naval activity record open with its source link and dates.</em></span>
+                </div>
+                <figcaption class="fig-cap"><b>FIG</b><span>Reported</span></figcaption>
+              </figure>
+              <h3>
+                <i class="font-icon stratops-ico-assets-alert-1" aria-hidden="true"></i>
+                Reported
+                <span>A source said it.</span>
+              </h3>
+              <dl>
+                <dt>What it is</dt>
+                <dd>A statement someone published: a naval announcement, a NOTAM, an incident report, a cyber advisory.
+                </dd>
+                <dt>Where it breaks</dt>
+                <dd>Publication time, event time and location precision can all differ. Reports are corrected, repeated
+                  or withdrawn.</dd>
+                <dt>How StratOps shows it</dt>
+                <dd>The source link, publication date, status or expiry, and only the geometry the source supplied.</dd>
+              </dl>
+            </article>
+            <article class="ev-card clippath-1" data-reveal>
+              <figure class="fig">
+                <div class="img-slot is-placeholder r-16x9 " data-slot="MTH-PRED" role="img"
+                  aria-label="Image placeholder MTH-PRED"><span class="slot-label"><b>IMAGE SLOT MTH-PRED</b><i>16:9 ·
+                      1600×900</i><em>A satellite ground track or footprint with its data age shown.</em></span></div>
+                <figcaption class="fig-cap"><b>FIG</b><span>Predicted</span></figcaption>
+              </figure>
+              <h3>
+                <i class="font-icon stratops-ico-circle-1" aria-hidden="true"></i>
+                Predicted
+                <span>A model calculated it.</span>
+              </h3>
+              <dl>
+                <dt>What it is</dt>
+                <dd>A calculation from inputs: satellite propagation, footprints, range overlays.</dd>
+                <dt>Where it breaks</dt>
+                <dd>Accuracy depends on the age of the inputs and on modeling assumptions. A calculation is not a
+                  sighting.</dd>
+                <dt>How StratOps shows it</dt>
+                <dd>Labeled as propagated or modeled where the data supports it, with the age of the input data.</dd>
+              </dl>
+            </article>
+          </div>
+        </section>
+        <section class="section subpage-band" id="anatomy">
+          <div class="shell">
+            <div data-reveal>
+              <p class="sec-tag">ANATOMY OF A MARKER</p>
+            </div>
+            <div class="section-heading-row" data-reveal>
+              <h2 class="display-heading">FOUR THINGS TO CHECK<br><span>BEFORE YOU CONCLUDE</span></h2>
+            </div>
+            <div class="anatomy">
+              <div data-reveal>
+                <figure class="fig">
+                  <div class="img-slot is-placeholder r-16x9 " data-slot="MTH-ANATOMY" role="img"
+                    aria-label="Image placeholder MTH-ANATOMY"><span class="slot-label"><b>IMAGE SLOT
+                        MTH-ANATOMY</b><i>16:9 · 1600×900</i><em>Annotated screenshot of one selected item with four
+                        callouts marked A to D: source, time, identity, geometry.</em></span></div>
+                  <figcaption class="fig-cap"><b>FIG</b><span>One selected item, annotated A to D.</span></figcaption>
+                </figure>
+              </div>
+              <div class="callouts" data-reveal>
+                <div class="callout"><b class="clippath-3">A</b>
+                  <div>
+                    <h3>Source</h3>
+                    <p>Which network or publisher the item came from. Named providers are implemented integrations;
+                      availability depends on configuration and access.</p>
+                  </div>
+                </div>
+                <div class="callout"><b class="clippath-3">B</b>
+                  <div>
+                    <h3>Time</h3>
+                    <p>Three clocks can differ: when it was observed, when it was published and when the underlying data
+                      was issued. Read the one that matches your question.</p>
+                  </div>
+                </div>
+                <div class="callout"><b class="clippath-3">C</b>
+                  <div>
+                    <h3>Identity</h3>
+                    <p>How confident the match is, and whether evidence conflicts. Conflicting registration or operator
+                      data can lower confidence.</p>
+                  </div>
+                </div>
+                <div class="callout"><b class="clippath-3">D</b>
+                  <div>
+                    <h3>Geometry</h3>
+                    <p>Whether the location is an exact point, a port, an area or an approximate notice radius.
+                      Precision is part of the evidence.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="section shell" id="sources">
+          <div data-reveal>
+            <p class="sec-tag">WHERE THE DATA COMES FROM</p>
+          </div>
+          <div class="section-heading-row" data-reveal>
+            <h2 class="display-heading">SOURCES DIFFER<br><span>BY DOMAIN</span></h2>
+            <p class="section-aside">The platform includes adapters and reference integrations. A named provider does
+              not mean every endpoint is enabled, licensed, current or deployed.</p>
+          </div>
+          <div class="source-list">
+            <article data-reveal><span>AIR</span>
+              <h3>Aircraft observations</h3>
+              <p>Configured ADS-B networks and aggregators, including ADSB.lol, Airplanes.live, ADSB.fi, OpenSky and
+                Plane Alert. Military association is judged from identifiers and corroborating evidence, never from a
+                map symbol.</p>
+            </article>
+            <article data-reveal><span>SEA</span>
+              <h3>Vessels and naval publications</h3>
+              <p>AIS feeds from regional and global providers, kept apart from approved navy, ministry and DVIDS
+                publications. A published port or area never becomes a live ship position.</p>
+            </article>
+            <article data-reveal><span>SPACE</span>
+              <h3>Orbits and imagery</h3>
+              <p>CelesTrak GP elements and SATCAT records drive propagated positions. Sentinel imagery references, where
+                configured, are a separate collection with their own acquisition dates.</p>
+            </article>
+            <article data-reveal><span>AIRSPACE</span>
+              <h3>Notices and status</h3>
+              <p>Published notices from configured providers, plus FAA NAS Status for US airport delays, each with its
+                source text and geometry as supplied.</p>
+            </article>
+            <article data-reveal><span>SIGNALS</span>
+              <h3>GNSS degradation</h3>
+              <p>Provider-derived summaries from GPSInterference.com and ADS-B accuracy history, shown with sample
+                information and explicit coverage limits.</p>
+            </article>
+            <article data-reveal><span>EVENTS</span>
+              <h3>Reporting and context</h3>
+              <p>Accepted news and official reports, a curated conflict registry, cyber and network-measurement sources,
+                and reference datasets such as military bases and NASA fire detections.</p>
+            </article>
+          </div>
+        </section>
+        <section class="section subpage-band" id="misreadings">
+          <div class="shell">
+            <div data-reveal>
+              <p class="sec-tag">COMMON MISREADINGS</p>
+            </div>
+            <div class="section-heading-row" data-reveal>
+              <h2 class="display-heading">WHAT A SYMBOL<br><span>DOES NOT PROVE</span></h2>
+              <p class="section-aside">Most analysis errors on a map come from reading too much into one marker. These
+                are the ones to watch for.</p>
+            </div>
+            <div data-reveal>
+              <table class="misread">
+                <thead>
+                  <tr>
+                    <th scope="col">You see</th>
+                    <th scope="col">It does not establish</th>
+                    <th scope="col">Check instead</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="You see">A shaded GNSS cell</td>
+                    <td data-label="It does not establish">A located jammer or confirmed spoofing.</td>
+                    <td data-label="Check instead">The observation period, sample information and coverage notes.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">A port named in a naval publication</td>
+                    <td data-label="It does not establish">A warship currently at that port.</td>
+                    <td data-label="Check instead">The publication date and whether the source supplied geometry.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">No aircraft on the map</td>
+                    <td data-label="It does not establish">That no aircraft is there.</td>
+                    <td data-label="Check instead">Receiver coverage, source access and broadcast gaps.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">A satellite footprint</td>
+                    <td data-label="It does not establish">Sensor coverage or a collection event.</td>
+                    <td data-label="Check instead">The orbital data age. The footprint is geometry only.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">A 3D ship or aircraft model</td>
+                    <td data-label="It does not establish">Identification, payload or mission.</td>
+                    <td data-label="Check instead">The identity confidence and the evidence behind it.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">A base marker or range ring</td>
+                    <td data-label="It does not establish">Current force presence, readiness or verified radar
+                      performance.</td>
+                    <td data-label="Check instead">The reference dataset’s date and its stated precision.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">A vulnerability listing or threat report</td>
+                    <td data-label="It does not establish">An active attack.</td>
+                    <td data-label="Check instead">The report’s category, date and source.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">A thermal anomaly or seismic event</td>
+                    <td data-label="It does not establish">A strike or an explosion.</td>
+                    <td data-label="Check instead">Whether an independent report corroborates it.</td>
+                  </tr>
+                  <tr>
+                    <td data-label="You see">The same story across many outlets</td>
+                    <td data-label="It does not establish">Independent confirmation.</td>
+                    <td data-label="Check instead">Whether the outlets trace back to one original source.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        <section class="section shell" id="limits">
+          <div class="principles3">
+            <div class="principle" data-reveal><b>FRESHNESS</b>
+              <h3>Each source keeps its own clock</h3>
+              <p>Providers update at different intervals. Refreshing the page never creates a newer observation than the
+                provider has published.</p>
+            </div>
+            <div class="principle" data-reveal><b>GAPS</b>
+              <h3>Missing is not absent</h3>
+              <p>Aircraft and vessels can be unobserved because of broadcast, receiver, access or classification gaps.
+                The map shows what was received.</p>
+            </div>
+            <div class="principle" data-reveal><b>ACCESS</b>
+              <h3>Rights and permissions vary</h3>
+              <p>Some sources need credentials, licences or explicit enablement, and some features depend on your
+                access.</p>
+            </div>
+          </div>
+          <div class="method-note" data-reveal>
+            <h3>Operational limitations</h3>
+            <p>StratOps is an independent, public-source research and visualization tool. It is not a classified
+              intelligence source, a complete worldwide surveillance feed, an official aviation advisory, a navigation
+              authority or an emergency-warning system. Confirm consequential decisions with current authoritative
+              sources.</p>
+          </div>
+        </section>
+        <section class="section shell" data-reveal>
+          <div class="cta-inset clippath-1">
+            <div>
+              <p class="eyebrow">INVESTIGATE WITH CONTEXT</p>
+              <h2>Use the map. Check the source.</h2>
+              <p>Every item in the workspace carries the evidence described here.</p>
+            </div><a class="btn btn-primary" href="<%= domains.portalOrigin %>/"><span>Enter StratOps</span><svg
+                aria-hidden="true">
+                <use href="#icon-arrow" />
+              </svg></a>
+          </div>
+        </section>
+      </main>
+      <%= partials("footer") %>
+</body>
+
+</html>

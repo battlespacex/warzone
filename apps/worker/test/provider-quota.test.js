@@ -121,7 +121,7 @@ test('unknown quota does not disable configured provider; diagnostics preserve u
     const p=resolveQuotaPolicy('https://otx.alienvault.com/api/v1/pulses/subscribed',{headers:{'X-OTX-API-KEY':'fixture'}},{}),state={};
     assert.equal(p.limits.length,0);assert.equal(reserveQuota(state,p,at).ok,true);
     const dir=directory(),store=createFileQuotaStore(dir);await store.transact('account:'+p.account,s=>reserveQuota(s,p,at));
-    const diagnostic=await getProviderQuotaDiagnostics(p,{store,now:at});assert.equal(diagnostic.plan,'UNKNOWN');assert.equal(diagnostic.usage.calls.today,1);
+    const diagnostic=await getProviderQuotaDiagnostics(p,{store,now:at});assert.equal(diagnostic.plan,'FREE (user-confirmed)');assert.equal(diagnostic.observedRemaining,null);assert.equal(diagnostic.usage.calls.today,1);
     assert.throws(()=>resolveQuotaPolicy('https://sh.dataspace.copernicus.eu/api/v1/process',{},
         {PROVIDER_QUOTA_POLICIES_JSON:JSON.stringify({copernicus:{limits:[limit(10000,{unit:'processing_units'})]}})}),/weight unconfigured/);
 });
@@ -242,4 +242,84 @@ test('orbital refresh on a second API instance retains shared GP fetch time and 
         assert.equal(calls,2);assert.equal(restored.count,1);assert.equal(restored.sourceEpoch,original.sourceEpoch);
         assert.ok(Math.abs(Date.parse(restored.fetchedAt)-Date.parse(original.fetchedAt))<1000);
     } finally {globalThis.fetch=previousFetch;Date.now=previousNow;if(previousPath===undefined)delete process.env.STRATOPS_SATELLITE_CACHE_PATH;else process.env.STRATOPS_SATELLITE_CACHE_PATH=previousPath;}
+});
+
+test('unknown monthly balance earns a daily share and is never reported as a fresh allowance',async()=>{
+    const p=resolveQuotaPolicy('https://data.skylinkapi.com/v3.1/aircraft/icao24/abcdef',{}, {},{now:at});
+    assert.equal(p.limits[0].period,'rolling');assert.equal(p.limits[0].reserve,.2);
+    const store=createFileQuotaStore(directory());
+    const initial=await getProviderQuotaDiagnostics(p,{store,now:at});
+    assert.equal(initial.observedRemaining,null);assert.equal(initial.budgets[0].remaining,null);assert.equal(initial.budgets[0].resetAt,null);
+    assert.equal(initial.budgets[0].currentlySpendable,26);assert.equal(initial.budgets[0].internalHeadroom,800);
+    const state={};for(let i=0;i<26;i++)assert.equal(reserveQuota(state,p,at).ok,true);
+    assert.equal(reserveQuota(state,p,at).ok,false);
+    assert.equal(reserveQuota(state,p,at+DAY).ok,true);
+});
+
+test('small remaining budgets accrue fractional daily capacity instead of being exhausted in a few days',()=>{
+    const p=resolveQuotaPolicy('https://api.vesselapi.com/v1/vessel/123',{}, {},{now:at});
+    p.limits[0].initialUsed=115;const state={};
+    for(let day=0;day<5;day++)assert.equal(reserveQuota(state,p,at+day*DAY).ok,false);
+    assert.equal(reserveQuota(state,p,at+5*DAY).ok,true);assert.equal(state.buckets['internal-30day:calls'].used,116);
+    for(let day=6;day<11;day++)assert.equal(reserveQuota(state,p,at+day*DAY).ok,false);
+    assert.equal(reserveQuota(state,p,at+11*DAY).ok,true);
+});
+
+test('an unknown billing cycle does not refill at a calendar boundary or worker recreation',async()=>{
+    const start=Date.parse('2026-11-30T23:59:00Z'),dir=directory(),store=createFileQuotaStore(dir);
+    const p=resolveQuotaPolicy('https://data.skylinkapi.com/v3.1/aircraft/icao24/abcdef',{}, {},{now:start});
+    for(let i=0;i<26;i++)await store.transact('calendar',state=>assert.equal(reserveQuota(state,p,start).ok,true));
+    const restored=createFileQuotaStore(dir);
+    assert.equal((await restored.transact('calendar',state=>reserveQuota(state,p,start+120000))).ok,false);
+});
+
+test('legacy usage from an overlapping previous month is imported once, not erased by calendar reset',async()=>{
+    const root=directory(),legacy=root+'legacy';await fs.mkdir(legacy,{recursive:true});
+    await fs.writeFile(legacy+'/vesselapi-identity.json',JSON.stringify({month:'2026-10',requests:100}));
+    const store=createFileQuotaStore(root+'ledger'),env={PROVIDER_QUOTA_LEGACY_DIRECTORY:legacy};let clock=at,calls=0;
+    const request=()=>createQuotaFetch({store,env,now:()=>clock,fetchImpl:async()=>{calls++;return Response.json({vessel:{name:'fixture'}});}});
+    // Twenty usable calls remain after importing 100; the first share is <1 call.
+    await assert.rejects(request()('https://api.vesselapi.com/v1/vessel/123'),/held/);assert.equal(calls,0);
+    clock+=DAY;await request()('https://api.vesselapi.com/v1/vessel/123');assert.equal(calls,1);
+    const p=resolveQuotaPolicy('https://api.vesselapi.com/v1/vessel/123',{},env,{now:clock});
+    const diagnostic=await getProviderQuotaDiagnostics(p,{store,now:clock});assert.equal(diagnostic.budgets[0].used,101);
+});
+
+test('migration keeps a fixed-window debit instead of resetting it as a new rolling allowance',()=>{
+    const p=resolveQuotaPolicy('https://data.skylinkapi.com/v3.1/aircraft/icao24/abcdef',{}, {},{now:at});
+    const state={buckets:{'internal-30day:calls':{start:at-DAY,end:at+29*DAY,used:790,baseline:0,today:0,day:Math.floor(at/DAY),anchor:at-DAY}}};
+    assert.equal(reserveQuota(state,p,at).ok,false);assert.equal(state.buckets['internal-30day:calls'].used,790);
+    assert.equal(state.buckets['internal-30day:calls'].events[0].cost,790);
+});
+
+test('authenticated free OpenSky retains the existing fifteen-minute polling floor',()=>{
+    const p=resolveQuotaPolicy('https://opensky-network.org/api/states/all',{headers:{Authorization:'Bearer fixture'}},{},{credential:'client-id'});
+    assert.equal(p.limits[0].allowance,4000);assert.equal(p.minimumIntervalMs,900000);assert.equal(p.costs.credits,4);
+});
+
+test('verified reset headers pace actual remaining usable calls over the remaining billing days',()=>{
+    const state={},p=resolveQuotaPolicy('https://data.skylinkapi.com/v3.1/aircraft/icao24/abcdef',{}, {},{now:at});
+    assert.equal(reserveQuota(state,p,at).ok,true);
+    reconcileQuota(state,p,{status:200,headers:new Headers({'X-RateLimit-Requests-Remaining':'800','X-RateLimit-Requests-Reset':String((at+5*DAY)/1000)})},at);
+    // 800 remaining - 200 reserve = 600 usable, released over five actual days.
+    for(let i=0;i<120;i++)assert.equal(reserveQuota(state,p,at).ok,true);
+    assert.equal(reserveQuota(state,p,at).ok,false);
+    assert.equal(state.buckets['provider-observed-cycle:calls'].used,320);
+});
+
+test('confirmed billing reset retires the old cycle without claiming a new full balance',async()=>{
+    const state={},p=resolveQuotaPolicy('https://api.vesselapi.com/v1/vessel/123',{}, {},{now:at});
+    reserveQuota(state,p,at);
+    reconcileQuota(state,p,{status:200,headers:new Headers({'X-RateLimit-Remaining':'31','X-RateLimit-Reset':String((at+DAY)/1000)})},at);
+    assert.equal(reserveQuota(state,p,at).ok,true);assert.equal(reserveQuota(state,p,at).ok,false);
+    assert.equal(reserveQuota(state,p,at+DAY).ok,true);
+    assert.equal(state.observedRemaining,null);assert.equal(state.observedCycleLimit,undefined);
+    assert.equal(state.buckets['internal-30day:calls'].used,1);
+});
+
+test('undocumented numeric reset durations do not invent a billing anniversary',()=>{
+    const state={},p=resolveQuotaPolicy('https://api.vesselapi.com/v1/vessel/123',{}, {},{now:at});
+    reserveQuota(state,p,at);
+    reconcileQuota(state,p,{status:200,headers:new Headers({'X-RateLimit-Remaining':'100','X-RateLimit-Reset':'3600'})},at);
+    assert.equal(state.observedCycleLimit,undefined);
 });

@@ -5,4 +5,5 @@ import {fileURLToPath} from 'node:url';
 beforeEach(()=>{
     process.env.PROVIDER_QUOTA_STORE='file';
     process.env.PROVIDER_QUOTA_DIRECTORY=fileURLToPath(new URL('../../../.generated/quota-tests/'+randomUUID()+'/',import.meta.url));
+    process.env.PROVIDER_QUOTA_LEGACY_DIRECTORY=process.env.PROVIDER_QUOTA_DIRECTORY;
 });

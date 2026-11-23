@@ -1,4 +1,5 @@
-﻿import * as Cesium from 'cesium';
+import { cloneNoticeTemplate, noticeField, noticeAction } from './warzone-notice-templates.js';
+import * as Cesium from 'cesium';
 import { copyNextSceneFrame, assertCaptureReadable, loadImage, downloadBlob, canUseSavePicker } from './warzone-capture-shot.js';
 import { noticeGeometryPoints, noticeStatus } from '../../../apps/shared/geospatial-notices.js';
 let activeCancel = null;
@@ -50,22 +51,23 @@ export function noticeExportDate(value, { dateOnly = false } = {}) {
     return dateOnly ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'UTC' }).format(date).toUpperCase() : date.toISOString().replace('T', ' ').slice(0, 16) + 'Z';
 }
 function exportComponent(notice, logos, capturedAt, width, height, anchor) {
-    const root = document.createElement('div'); root.className = 'notam-export';
+    const root = cloneNoticeTemplate('export');
     const css = getComputedStyle(document.documentElement), number = name => parseFloat(css.getPropertyValue(name));
     const minWidth = number('--notam-export-layout-min-width'), minHeight = number('--notam-export-layout-min-height');
     if (!(minWidth > 0 && minHeight > 0)) throw Error('NOTAM export stylesheet is unavailable.');
     // Composition uses exported pixels. Keep the editable CSS typography readable.
     const scale = 1;
     Object.assign(root.style, { width: width / scale + 'px', height: height / scale + 'px' });
-    const add = (name, text, parent = root) => { const el = document.createElement('div'); el.className = 'notam-export__' + name; if (text !== undefined) { el.textContent = text; el.setAttribute('data-export-text', ''); } parent.append(el); return el; };
-    const top = document.createElement('img'); top.className = 'notam-export__stratops-logo'; top.src = logos[0].src; top.alt = 'StratOps'; root.append(top);
-    add('timestamp', capturedAt.toISOString().replace('T', ' ').slice(0, 19) + ' UTC');
-    const info = add('intelligence'); add('identifier', notice.sourceId || notice.title || 'N/A', info); add('type', notice.noticeType || 'NOTAM', info);
-    const details = add('details', undefined, info);
-    for (const [key, value] of Object.entries({ STATUS: noticeStatus(notice, capturedAt.getTime()), AREA: notice.region || notice.fir || 'N/A', PLACE: notice.country || 'N/A', DATES: noticeExportDate(notice.effectiveFrom, { dateOnly: true }) + ' – ' + noticeExportDate(notice.effectiveUntil, { dateOnly: true }), UNTIL: noticeExportDate(notice.effectiveUntil) })) add('detail', key + ': ' + value, details);
-    add('source', 'Source: ' + (notice.provider || notice.source_name || notice.issuer || 'N/A'));
-    const bottom = document.createElement('img'); bottom.className = 'notam-export__battlespacex-logo'; bottom.src = logos[1].src; bottom.alt = 'BattlespaceX'; root.append(bottom);
-    const marker = add('marker'); Object.assign(marker.style, { left: anchor.x / scale + 'px', top: anchor.y / scale + 'px' });
+    const top = noticeField(root, 'stratops-logo'); top.src = logos[0].src;
+    noticeField(root, 'timestamp').textContent = capturedAt.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    noticeField(root, 'identifier').textContent = notice.sourceId || notice.title || 'N/A';
+    noticeField(root, 'type').textContent = notice.noticeType || 'NOTAM';
+    for (const [key, value] of Object.entries({ STATUS: noticeStatus(notice, capturedAt.getTime()), AREA: notice.region || notice.fir || 'N/A', PLACE: notice.country || 'N/A', DATES: noticeExportDate(notice.effectiveFrom, { dateOnly: true }) + ' – ' + noticeExportDate(notice.effectiveUntil, { dateOnly: true }), UNTIL: noticeExportDate(notice.effectiveUntil) })) {
+        const field = noticeField(root, key); field.textContent = field.getAttribute('data-label') + ': ' + value;
+    }
+    const source = noticeField(root, 'source'); source.textContent = source.getAttribute('data-label') + ': ' + (notice.provider || notice.source_name || notice.issuer || 'N/A');
+    const bottom = noticeField(root, 'battlespacex-logo'); bottom.src = logos[1].src;
+    const marker = noticeField(root, 'marker'); Object.assign(marker.style, { left: anchor.x / scale + 'px', top: anchor.y / scale + 'px' });
     document.body.append(root); return { root, scale, images: [top, bottom] };
 }
 function polygonPath(ctx, clip, box, inset = 0) {
@@ -149,18 +151,15 @@ export function startNoticeCapture(viewer, notice, { entity = null, onClose = ()
     activeCancel?.(); const controller = viewer?.scene?.screenSpaceCameraController, canvas = viewer?.scene?.canvas;
     if (!canvas || controller?.enableInputs === false) throw Error('Finish the current map drawing or camera transition before TAKE SHOT.');
     const previous = controller?.enableInputs; if (controller) controller.enableInputs = false;
-    const bounds = canvas.getBoundingClientRect(), overlay = document.createElement('div'); overlay.className = 'wz-notice-capture'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-label', 'Select NOTAM screenshot area');
+    const bounds = canvas.getBoundingClientRect(), overlay = cloneNoticeTemplate('capture');
     Object.assign(overlay.style, { left: bounds.left + 'px', top: bounds.top + 'px', width: bounds.width + 'px', height: bounds.height + 'px' });
-    const selectionBox = document.createElement('div'); selectionBox.className = 'wz-notice-capture__selection'; selectionBox.hidden = true;
-    const resize = document.createElement('span'); resize.className = 'wz-notice-capture__resize'; selectionBox.append(resize); overlay.append(selectionBox);
-    const toolbar = document.createElement('div'); toolbar.className = 'wz-notice-capture__toolbar';
-    const status = document.createElement('span'); status.setAttribute('aria-live', 'polite'); toolbar.append(status);
-    const aspects = document.createElement('select'); aspects.setAttribute('aria-label', 'Capture aspect ratio');
-    for (const [value, preset] of Object.entries(NOTICE_CAPTURE_RATIOS)) { const option = document.createElement('option'); option.value = value; option.textContent = preset.label; aspects.append(option); } aspects.value = '1:1'; toolbar.append(aspects);
+    const selectionBox = overlay.querySelector('.wz-notice-capture__selection'), resize = noticeAction(overlay, 'resize');
+    const toolbar = overlay.querySelector('.wz-notice-capture__toolbar'), status = noticeField(toolbar, 'status');
+    const aspects = noticeAction(toolbar, 'aspect'); aspects.value = '1:1';
     let selection = null, gesture = null, pointer = null, draw = false, closed = false, saving = false, limits = null, limitation = '', message = '', obstacles = [];
     const previousFocus = document.activeElement;
-    const buttons = {}; for (const label of ['DRAW', 'RESET', 'CANCEL', 'SAVE AS']) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn-secondary white'; b.textContent = label; buttons[label] = b; toolbar.append(b); }
-    buttons['SAVE AS'].disabled = true; overlay.append(toolbar); document.body.append(overlay);
+    const buttons = { DRAW: noticeAction(toolbar, 'draw'), RESET: noticeAction(toolbar, 'reset'), CANCEL: noticeAction(toolbar, 'cancel'), 'SAVE AS': noticeAction(toolbar, 'save') };
+    buttons['SAVE AS'].disabled = true; document.body.append(overlay);
     const point = e => ({ x: Math.max(0, Math.min(bounds.width, e.clientX - bounds.left)), y: Math.max(0, Math.min(bounds.height, e.clientY - bounds.top)) });
     function blockers() { return [...document.querySelectorAll('#wz-map-layers-pane, #warzone-notice-panel, .wz-dock, .wz-header')].filter(el => el.getAttribute('aria-hidden') !== 'true' && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').map(el => { const r = el.getBoundingClientRect(); return { x: Math.max(0, r.left - bounds.left - 8), y: Math.max(0, r.top - bounds.top - 8), right: Math.min(bounds.width, r.right - bounds.left + 8), bottom: Math.min(bounds.height, r.bottom - bounds.top + 8) }; }).filter(r => r.right > r.x && r.bottom > r.y); }
     function defaultSelection() {
@@ -186,10 +185,10 @@ export function startNoticeCapture(viewer, notice, { entity = null, onClose = ()
     function render() {
         selectionBox.hidden = !selection; overlay.classList.toggle('has-selection', Boolean(selection)); overlay.classList.toggle('is-drawing', draw);
         aspects.disabled = saving; buttons.DRAW.disabled = saving || !limits; buttons.RESET.disabled = saving; buttons['SAVE AS'].disabled = saving || !selection || !limits;
-        buttons.DRAW.textContent = draw ? 'RESIZE' : 'DRAW';
+        buttons.DRAW.textContent = buttons.DRAW.getAttribute(draw ? 'data-resize-label' : 'data-draw-label');
         if (selection) Object.assign(selectionBox.style, { left: selection.x + 'px', top: selection.y + 'px', width: selection.width + 'px', height: selection.height + 'px' });
         const size = selection ? `${Math.round(selection.width * limits.ratio)} × ${Math.round(selection.height * limits.ratio)} px` : '', minimum = limits ? `Minimum ${limits.minWidth} × ${limits.minHeight}` : '';
-        const text = limitation || message || `${size} · ${minimum}${selection && (Math.round(selection.width * limits.ratio) === limits.minWidth || Math.round(selection.height * limits.ratio) === limits.minHeight) ? ' (minimum reached)' : ''}. ${draw ? 'Drag to draw; Escape restores selection.' : 'Move or resize; include the notice.'}`;
+        const text = limitation || message || `${size} · ${minimum}${selection && (Math.round(selection.width * limits.ratio) === limits.minWidth || Math.round(selection.height * limits.ratio) === limits.minHeight) ? ' (minimum reached)' : ''}. ${status.getAttribute(draw ? 'data-draw-instructions' : 'data-resize-instructions')}`;
         if (status.textContent !== text) status.textContent = text; positionToolbar();
     }
     function finishGesture(restore = false) { if (gesture && restore) selection = gesture.original; gesture = null; const id = pointer; pointer = null; if (id !== null && overlay.hasPointerCapture?.(id)) overlay.releasePointerCapture(id); }

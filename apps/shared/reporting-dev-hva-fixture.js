@@ -119,8 +119,8 @@ function injectReportingDevHvaFixture(snapshot = {}) {
     ...(Array.isArray(reportContent.operational_imagery_targets) ? reportContent.operational_imagery_targets : [])
       .filter((item) => item?.asset_id !== DEV_HVA_ASSET_ID),
   ];
-  reportContent.methodology_metrics = {
-    ...(reportContent.methodology_metrics || {}),
+  reportContent.intelligence = {
+    ...(reportContent.intelligence_metrics || {}),
     qualified_hva_total: qualified.length,
     selected_hva_total: selected.length,
   };

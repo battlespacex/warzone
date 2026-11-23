@@ -1,5 +1,10 @@
-import '../assets/css/root.css';
-import './site.css';
+import '../../../assets/css/root.css';
+import '../../../assets/fonts/stratops/style.css';
+import '../css/site.css';
+// import './icon-fallback.js';
+import '../css/site-motion.css';
+import '../css/pages.css';
+import './contact.js';
 
 /* StratOps public marketing interactions.
    No dependencies. This file does not touch the operational globe or its trackers. */
@@ -109,43 +114,43 @@ import './site.css';
     showEverything();
   }
 
-  // Nine domains, accessible as real buttons. Mouse drag + touch native swipe.
+  // Domain cards, accessible as real buttons. Mouse drag + touch native swipe.
   const domains = {
     air: {
-      title: "Military aviation", index: "D / 01", note: "TRACKS / CLASSIFICATION / FOCUS",
-      description: "Follow military-associated aircraft with 3D models, position telemetry, track history and identification confidence. Zoom from theater context into an individual flight."
+      title: "Military aviation", index: "D/ 01",
+      description: "Select an observed military track to see altitude, speed, callsign, identity evidence and source age, then replay its collected history. A missing signal is not proof an aircraft is absent."
     },
     sea: {
-      title: "Naval activity", index: "D / 02", note: "MARITIME CONTACTS / CONTEXT / FOCUS",
-      description: "Explore AIS-visible vessels, classification details and 3D naval assets. Compare recorded vessel observations with separately reported naval activity."
+      title: "Naval activity", index: "D/ 02",
+      description: "Compare AIS contacts with published exercises, deployments and port visits, kept visibly separate. A publication location is a report, not a live ship position."
     },
     orbit: {
-      title: "Orbital intelligence", index: "D / 03", note: "ORBIT PREDICTIONS / GROUND TRACKS / CONTEXT",
-      description: "Visualize military-associated and dual-use satellites with orbital propagation, predicted positions, ground tracks and focus controls. Distinguish modeled orbits from imagery observations."
+      title: "Orbital intelligence", index: "D/ 03",
+      description: "Follow public military-associated and dual-use satellites by NORAD identity, with predicted ground tracks and data age. Orbits are modeled, not detections, and imagery records are separate."
     },
     notam: {
-      title: "NOTAM intelligence", index: "D / 04", note: "PUBLISHED NOTICES / AIRSPACE / GEOMETRY",
-      description: "Inspect available NOTAMs and geographic restriction areas, validity windows and anchored detail cards. Capture a geolocated operating-area view for review."
+      title: "NOTAM intelligence", index: "D/ 04",
+      description: "Check whether a published notice overlaps your theater. See its geometry, validity window and source text, then capture the map view. It is a reference, not an official flight briefing."
     },
     gnss: {
-      title: "GNSS monitoring", index: "D / 05", note: "INTERFERENCE / OBSERVATION WINDOWS / MAP",
-      description: "Reveal GNSS interference hexagons, severity bands and observation periods. Inspect regional signal disruption without treating a cell as proof of a specific jammer."
+      title: "GNSS monitoring", index: "D/ 05",
+      description: "Compare reported GNSS degradation by area, severity and observation window, and look for patterns next to other context. Degradation alone does not locate a jammer or name who is responsible."
     },
     conflict: {
-      title: "Conflict intelligence", index: "D / 06", note: "EVENTS / HOTSPOTS / INTEL WIRE",
-      description: "Follow conflict reporting, theater intelligence, hotspots and source-linked developments. Move between individual incidents and the broader regional picture."
+      title: "Conflict intelligence", index: "D/ 06",
+      description: "Browse reported missile, drone and strike events with sources, dates and location precision, alongside regional hotspots. Reports can be late, incomplete or corrected."
     },
     aoi: {
-      title: "Area of Interest intelligence", index: "D / 07", note: "DRAW / SCAN / STRATEGIC CONTEXT",
-      description: "Draw a custom operational area and examine available aircraft, vessels, events, military bases and geographic overlays inside the selection."
+      title: "Area of Interest intelligence", index: "D/ 07",
+      description: "Draw an area to summarize the bases, observed assets and reported incidents in and around it. Edit the shape as your question changes. An empty result never proves absence."
     },
     imagery: {
-      title: "Satellite observations", index: "D / 08", note: "IMAGERY RECORDS / METADATA / LOCATIONS",
-      description: "Explore location-linked observation records, imagery references and metadata. Compare what was published with where assets are modeled to be."
+      title: "Satellite observations", index: "D/ 08",
+      description: "Open eligible event-linked imagery records with acquisition dates, locations and source metadata. When an image was captured is not where a satellite is now."
     },
     cyber: {
-      title: "Cyber & infrastructure", index: "D / 09", note: "DISRUPTIONS / PUBLIC REPORTS / CONTEXT",
-      description: "See source-backed cyber reports, network disruption indicators and infrastructure context alongside regional operational intelligence."
+      title: "Cyber & infrastructure", index: "D/ 09",
+      description: "See source-attributed cyber reports and internet disruptions in their geographic setting. An outage or advisory is context, not automatic proof of an attack."
     }
   };
   const rail = document.getElementById("domain-rail");
@@ -157,6 +162,7 @@ import './site.css';
   const description = document.getElementById("domain-detail-text");
   const index = document.getElementById("domain-detail-index");
   const note = document.getElementById("domain-detail-note");
+  const detail = document.getElementById("domain-detail");
 
   function selectDomain(button) {
     const info = domains[button.dataset.domain];
@@ -168,8 +174,22 @@ import './site.css';
     });
     if (title) title.textContent = info.title;
     if (description) description.textContent = info.description;
-    if (index) index.textContent = info.index;
+    if (index) {
+      // Preserve the two original child spans (D/ and 01) on every selection.
+      const number = info.index.split('/').pop().trim();
+      const prefix = document.createElement('span');
+      prefix.textContent = 'D/';
+      const value = document.createElement('span');
+      value.textContent = number;
+      index.replaceChildren(prefix, value);
+    }
     if (note) note.textContent = info.note;
+    // A tiny, opt-out transition when switching the existing domain detail.
+    if (detail && !reducedMotion.matches) {
+      detail.classList.remove("is-refreshed");
+      void detail.offsetWidth;
+      detail.classList.add("is-refreshed");
+    }
     if (railCount) railCount.textContent = info.index.slice(-2) + " / " + String(cards.length).padStart(2, "0");
   }
 
@@ -236,6 +256,52 @@ import './site.css';
       if (suppressClick) { event.preventDefault(); event.stopImmediatePropagation(); }
     }, true);
   }
+
+  // Footer and hero links can jump straight to a domain: select its card and bring it into view.
+  document.querySelectorAll("[data-domain-link]").forEach((link) => {
+    link.addEventListener("click", () => {
+      const card = cards.find((c) => c.dataset.domain === link.dataset.domainLink);
+      if (!card) return;
+      selectDomain(card);
+      if (!rail) return;
+      const pad = parseFloat(getComputedStyle(rail).paddingLeft) || 0;
+      const delta = card.getBoundingClientRect().left - rail.getBoundingClientRect().left - pad;
+      rail.scrollBy({ left: delta, behavior: reducedMotion.matches ? "auto" : "smooth" });
+    });
+  });
+
+  // Workflow timeline: start the dot-to-dot sequence once, when it scrolls into view.
+  const timeline = document.querySelector(".workflow-steps");
+  if (timeline) {
+    if (reducedMotion.matches || !("IntersectionObserver" in window)) {
+      timeline.classList.add("is-playing");
+    } else {
+      const timelineObserver = new IntersectionObserver((entries, observer) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        timeline.classList.add("is-playing");
+        observer.disconnect();
+      }, { rootMargin: "0px 0px -18% 0px", threshold: 0.15 });
+      timelineObserver.observe(timeline);
+    }
+  }
+
+  // Smooth accordion: the panel height animates via CSS (grid-template-rows).
+  // JS only flips state, keeps ARIA in sync and allows one open item at a time.
+  const faqItems = Array.from(document.querySelectorAll(".faq-item"));
+  function setFaq(item, open) {
+    const trigger = item.querySelector(".faq-trigger");
+    item.classList.toggle("is-open", open);
+    if (trigger) trigger.setAttribute("aria-expanded", String(open));
+  }
+  faqItems.forEach((item) => {
+    const trigger = item.querySelector(".faq-trigger");
+    if (!trigger) return;
+    trigger.addEventListener("click", () => {
+      const open = !item.classList.contains("is-open");
+      faqItems.forEach((other) => { if (other !== item) setFaq(other, false); });
+      setFaq(item, open);
+    });
+  });
 
   // Accessible preview tabs: click plus left/right/Home/End keyboard controls.
   const modeTabs = Array.from(document.querySelectorAll('[role="tab"][data-mode]'));

@@ -2,6 +2,8 @@
 import {randomUUID} from 'node:crypto';
 import fs from 'node:fs/promises';
 import {gzipSync,gunzipSync} from 'node:zlib';
+import {hostname} from 'node:os';
+import path from 'node:path';
 import {fingerprint,getQuotaStore} from './provider-quota-store.js';
 
 const DAY=86400000;
@@ -15,6 +17,13 @@ function number(value) {return value!==null&&value!==undefined&&value!==''&&Numb
 function header(headers,name) {
     if(typeof headers?.get==='function')return headers.get(name);
     return Object.entries(headers || {}).find(([key])=>key.toLowerCase()===name.toLowerCase())?.[1] ?? null;
+}
+function responseResetAt(headers,now) {
+    const raw=header(headers,'x-credits-reset') ?? header(headers,'x-ratelimit-requests-reset') ?? header(headers,'x-ratelimit-reset');
+    const numeric=number(raw),value=numeric!==null?(numeric>1e12?numeric:numeric*1000):Date.parse(raw || '');
+    // Only a future absolute timestamp is accepted. A duration with undocumented
+    // units is not enough evidence to invent a billing anniversary.
+    return Number.isFinite(value)&&value>now?value:null;
 }
 export function quotaWindow(limit,now) {
     const date=new Date(now),period=limit.period;
@@ -66,13 +75,14 @@ export function resolveQuotaPolicy(input,options={},env=process.env,context={}) 
     }
     if(!id&&context.manageUnknown)id='host:'+host;
     if(!id)return null;
-    const internalMonthly=(name,budget)=>calls('internal-30day',Number(env[name])||budget,'fixed',{
-        durationMs:30*DAY,anchorMs:context.now || Date.now(),reserve:.2,paced:true,evidence:'internal 30-day safety budget; actual billing reset UNKNOWN'
+    const internalMonthly=(name,budget)=>calls('internal-30day',Number(env[name])||budget,'rolling',{
+        durationMs:30*DAY,reserve:.2,paced:true,bootstrap:true,evidence:'internal trailing 30-day budget; actual balance/reset UNKNOWN; user confirms FREE plan'
     });
     if(id==='skylink'){limits=[internalMonthly('SKYLINK_MONTHLY_REQUEST_BUDGET',1000)];cacheMs=3600000;}
     if(id==='vesselapi'){limits=[internalMonthly('VESSELAPI_MONTHLY_REQUEST_BUDGET',150)];cacheMs=7*DAY;}
     if(id==='airplanes_live')limits=[calls('internal-daily',Number(env.AIRPLANES_LIVE_DAILY_BUDGET)||480,'day')];
-    if(id==='notac'){limits=[calls('internal-daily',96,'day',{spread:true,burst:12})];costs.credits=url.pathname.includes('/delta')?3:2;cacheMs=1800000;}
+    if(id==='notac'){limits=[calls('internal-daily',96,'day',{spread:true,burst:12}),
+        {id:'published-credits',unit:'credits',allowance:10000,period:'month',reserve:.2,paced:true,evidence:'attached NOTAC FREE beta; documented first UTC reset; remaining balance UNKNOWN until headers'}];costs.credits=url.pathname.includes('/delta')?3:2;cacheMs=1800000;}
     if(id==='adsb_lol') {
         // Current built-in client sends no API key. Unknown custom tiers can override via explicit account policy.
         limits=[calls('anonymous-daily',500,'day',{reserve:.1,spread:true,burst:10,evidence:'attached provider research: anonymous 500/day/IP; account tier unverified'})];
@@ -81,8 +91,9 @@ export function resolveQuotaPolicy(input,options={},env=process.env,context={}) 
     }
     if(id==='opensky') {
         costs.credits=4; // conservative maximum for states/all, including all bounding boxes
-        limits=[{id:'anonymous-floor',unit:'credits',allowance:400,period:'day',reserve:.1,evidence:'attached provider research; authenticated tier UNKNOWN'}];
-        minimumIntervalMs=Math.ceil(DAY/90);
+        const authenticated=Boolean(context.credential&&context.credential!=='anonymous'||env.OPENSKY_CLIENT_ID&&env.OPENSKY_CLIENT_SECRET||header(h,'authorization'));
+        limits=[{id:'anonymous-floor',unit:'credits',allowance:authenticated?4000:400,period:'day',reserve:.1,evidence:authenticated?'attached standard authenticated FREE allowance; feeder entitlement UNKNOWN':'attached anonymous FREE allowance'}];
+        minimumIntervalMs=authenticated?(Number(env.OPENSKY_MINIMUM_INTERVAL_MS)||900000):Math.ceil(DAY/90);
     }
     if(id==='restcountries'){limits=[internalMonthly('RESTCOUNTRIES_MONTHLY_REQUEST_BUDGET',1000)];cacheMs=3*DAY;}
     if(id==='copernicus') {
@@ -108,9 +119,9 @@ export function resolveQuotaPolicy(input,options={},env=process.env,context={}) 
     try {overrides=JSON.parse(env.PROVIDER_QUOTA_POLICIES_JSON || '{}')[id] || {};}
     catch {throw Error('Invalid provider quota policy JSON');}
     // Operator policies are the place for verified plan, billing anchor, weights and account-wide aliases.
-    const policy={id,cacheMs,minimumIntervalMs,limits,costs,plan:'UNKNOWN',...overrides,...context};
+    const policy={id,cacheMs,minimumIntervalMs,limits,costs,plan:'FREE (user-confirmed)',...overrides,...context};
     policy.limits=[...new Map([...limits,...(context.limits || []),...(overrides.limits || [])].map(limit=>[limit.id+':'+limit.unit,limit])).values()].map(limit=>{
-        const monthly=['month','anniversary'].includes(limit.period)||limit.period==='fixed'&&limit.durationMs>=28*DAY;
+        const monthly=['month','anniversary'].includes(limit.period)||['fixed','rolling'].includes(limit.period)&&limit.durationMs>=28*DAY;
         const reserve=limit.reserve ?? (monthly ? 0.2 : 0);
         if(monthly&&reserve<.1)throw Error('Monthly quotas require a 10-20 percent reserve');
         return {...limit,reserve};
@@ -139,10 +150,22 @@ function bucketFor(state,limit,now) {
     state.buckets ||= {};
     // Internal rolling windows anchor to first persisted use, not to every request/restart.
     state.anchors ||= {};
-    if(limit.id==='internal-30day')limit={...limit,anchorMs:state.anchors[limit.id] ||= now};
+    if(limit.id==='internal-30day'&&limit.period==='fixed')limit={...limit,anchorMs:state.anchors[limit.id] ||= now};
     const [start,end]=quotaWindow(limit,now),key=limit.id+':'+limit.unit;
     if(limit.period==='rolling') {
         const bucket=state.buckets[key] ||= {anchor:now,baseline:0,today:0,day:Math.floor(now/DAY),events:[]};
+        if(!Array.isArray(bucket.events)) {
+            // Retain reservations from the earlier fixed-window implementation;
+            // their exact dates are unknown, so conservatively retain them for 30 days.
+            bucket.events=bucket.used>0?[{at:now,cost:bucket.used,imported:true}]:[];
+            bucket.migratedLegacyCoverage=bucket.used||0;
+        }
+        if(limit.bootstrap&&bucket.bootstrapAt===undefined){bucket.bootstrapAt=now;bucket.bootstrapPrior=Math.max(Number(limit.initialUsed)||0,bucket.used||0);}
+        if(limit.bootstrap&&Number(limit.initialUsed)>0&&!bucket.initialUsageImported) {
+            const extra=Math.max(0,Number(limit.initialUsed)-(bucket.used||0));
+            if(extra)bucket.events.push({at:now,cost:extra,imported:true});
+            bucket.initialUsageImported=true;
+        }
         bucket.events=(bucket.events || []).filter(event=>event.at>now-limit.durationMs);
         bucket.used=bucket.events.reduce((total,event)=>total+event.cost,0);bucket.start=now-limit.durationMs;
         bucket.end=bucket.events.length?bucket.events[0].at+limit.durationMs:now+limit.durationMs;
@@ -155,24 +178,47 @@ function bucketFor(state,limit,now) {
     return bucket;
 }
 
+function effectiveLimits(state,policy,now) {
+    const cycle=state.observedCycleLimit;
+    if(cycle&&now>=cycle.anchorMs+cycle.durationMs) {
+        const reset=cycle.anchorMs+cycle.durationMs,bucket=state.buckets?.['internal-30day:'+cycle.unit];
+        if(bucket?.events) {
+            bucket.events=bucket.events.filter(event=>event.at>=reset);
+            bucket.bootstrapAt=reset;bucket.bootstrapPrior=0;
+        }
+        state.lastConfirmedReset=reset;state.observedRemaining=null;delete state.observedCycleLimit;
+    }
+    const observed=state.observedCycleLimit;
+    return [...policy.limits.filter(limit=>!(observed&&limit.id==='internal-30day'&&limit.unit===observed.unit)),
+        ...(state.observedLimit?[state.observedLimit]:[]),...(observed?[observed]:[])];
+}
+
 export function reserveQuota(state,policy,now) {
     if(state.blockedUntil>now)return {ok:false,reason:state.reason || 'provider backoff',retryAt:state.blockedUntil};
     const checks=[];
-    for(const limit of [...policy.limits,...(state.observedLimit?[state.observedLimit]:[])]) {
+    for(const limit of effectiveLimits(state,policy,now)) {
         if(limit.endpoint&&limit.endpoint!==policy.endpoint)continue;
         const cost=Number(policy.costs[limit.unit] || 0);
         if(cost<0||!Number.isFinite(cost))throw Error('Invalid quota cost');
         if(!cost)continue;
         const bucket=bucketFor(state,limit,now),usable=Math.floor(limit.allowance*(1-(limit.reserve || 0)));
         let ceiling=usable;
-        if(limit.paced) {
+        if(limit.bootstrap) {
+            // Missing history is UNKNOWN. Earn only one day's conservative
+            // spending capacity initially; never expose the full allowance as a balance.
+            const warming=now-bucket.bootstrapAt<limit.durationMs;
+            const prior=warming?(bucket.bootstrapPrior||0):0;
+            const daily=Math.max(0,usable-prior)/(limit.durationMs/DAY);
+            ceiling=warming?Math.min(usable,prior+Math.floor(daily*(Math.floor((now-bucket.bootstrapAt)/DAY)+1))):usable;
+            if(bucket.today+cost>Math.max(cost,Math.ceil(daily*2)))return {ok:false,reason:'daily burst budget',retryAt:(Math.floor(now/DAY)+1)*DAY};
+        } else if(limit.paced) {
             const days=Math.max(1,Math.ceil((bucket.end-bucket.anchor)/DAY));
-            const daily=Math.max(cost,Math.floor((usable-bucket.baseline)/days));
+            const daily=Math.max(0,usable-bucket.baseline)/days;
             const elapsed=Math.floor((now-bucket.anchor)/DAY)+1;
-            ceiling=Math.min(usable,bucket.baseline+daily*elapsed);
-            if(bucket.today+cost>daily*2)return {ok:false,reason:'daily burst budget',retryAt:(Math.floor(now/DAY)+1)*DAY};
+            ceiling=Math.min(usable,bucket.baseline+Math.floor(daily*elapsed));
+            if(bucket.today+cost>Math.max(cost,Math.ceil(daily*2)))return {ok:false,reason:'daily burst budget',retryAt:(Math.floor(now/DAY)+1)*DAY};
         }
-        if(bucket.used+cost>ceiling)return {ok:false,reason:limit.paced?'paced '+limit.unit:'limit '+limit.unit,retryAt:limit.paced?Math.min(bucket.end,bucket.anchor+(Math.floor((now-bucket.anchor)/DAY)+1)*DAY):bucket.end};
+        if(bucket.used+cost>ceiling)return {ok:false,reason:limit.paced?'paced '+limit.unit:'limit '+limit.unit,retryAt:limit.bootstrap?Math.min(bucket.end,bucket.bootstrapAt+(Math.floor((now-bucket.bootstrapAt)/DAY)+1)*DAY):limit.paced?Math.min(bucket.end,bucket.anchor+(Math.floor((now-bucket.anchor)/DAY)+1)*DAY):bucket.end};
         if(limit.spread) {
             const burst=Math.max(cost,Number(limit.burst)||cost),rate=usable/(bucket.end-bucket.start);
             bucket.tokens=Math.min(burst,(bucket.tokens ?? burst)+Math.max(0,now-(bucket.tokenAt ?? now))*rate);bucket.tokenAt=now;
@@ -208,15 +254,32 @@ export function reconcileQuota(state,policy,response,now) {
         const bucket=bucketFor(state,state.observedLimit,now);
         const cost=number(header(response.headers,'x-credits-cost')) ?? policy.costs.credits ?? 0;
         // Every attempt was reserved before dispatch; this also initializes usage already spent outside this process.
-        if(remaining!==null)bucket.used=Math.max(bucket.used,state.observedLimit.allowance-remaining);
+        if(remaining!==null){const extra=Math.max(0,state.observedLimit.allowance-remaining-bucket.used);bucket.used+=extra;if(bucket.balanceInitialized)bucket.baseline+=extra;}
         else bucket.used+=Math.max(0,cost-(policy.costs.credits || 0));
-        if(!state.lastObservedAt){bucket.baseline=Math.max(0,bucket.used-cost);bucket.anchor=now;}
+        if(!bucket.balanceInitialized){bucket.baseline=Math.max(0,bucket.used-cost);bucket.anchor=now;bucket.balanceInitialized=true;}
         state.lastObservedAt=now;
     }
     if(remaining!==null&&policy.id!=='notac')for(const limit of policy.limits) {
         // Only bind headers whose unit/window is known to the integration.
         if(['skylink','vesselapi'].includes(policy.id)&&limit.unit==='calls'&&limit.id==='internal-30day') {
-            const bucket=bucketFor(state,limit,now);bucket.used=Math.max(bucket.used,limit.allowance-remaining);
+            const bucket=bucketFor(state,limit,now),extra=Math.max(0,limit.allowance-remaining-bucket.used);
+            if(extra&&bucket.events)bucket.events.push({at:now,cost:extra,imported:true});
+            bucket.used+=extra;if(limit.bootstrap)bucket.bootstrapPrior=(bucket.bootstrapPrior||0)+extra;
+        }
+    }
+    if(['skylink','vesselapi'].includes(policy.id)&&remaining!==null) {
+        const configured=policy.limits.find(limit=>limit.id==='internal-30day'&&limit.unit==='calls');
+        const reset=responseResetAt(response.headers,now);
+        if(configured&&reset) {
+            const current=state.observedCycleLimit;
+            if(!current||current.anchorMs+current.durationMs!==reset)state.observedCycleLimit={
+                id:'provider-observed-cycle',unit:'calls',allowance:configured.allowance,period:'fixed',
+                anchorMs:now,durationMs:reset-now,reserve:configured.reserve,paced:true,
+                initialUsed:Math.max(0,configured.allowance-remaining),evidence:'absolute reset and remaining response headers; configured FREE allowance'
+            };
+            const bucket=bucketFor(state,state.observedCycleLimit,now),extra=Math.max(0,configured.allowance-remaining-bucket.used);
+            bucket.used+=extra;if(bucket.balanceInitialized)bucket.baseline+=extra;
+            else {bucket.baseline=bucket.used;bucket.anchor=now;bucket.balanceInitialized=true;}
         }
     }
     state.lastStatus=status;state.observedRemaining=remaining;state.lastResponseAt=now;
@@ -242,9 +305,7 @@ export function reconcileQuota(state,policy,response,now) {
             const ends=Object.values(state.buckets || {}).map(b=>b.end).filter(end=>end>now);
             // NOTAC reset is documented; unknown exhaustion never gets an invented 30-day reset.
             until=policy.id==='notac'?quotaWindow({period:'month'},now)[1]:ends.length?Math.max(...ends):now+DAY;
-            const reset=header(response.headers,'x-credits-reset') ?? header(response.headers,'x-ratelimit-requests-reset') ?? header(response.headers,'x-ratelimit-reset');
-            const numericReset=number(reset),resetAt=numericReset!==null?(numericReset>1e12?numericReset:numericReset*1000):Date.parse(reset || '');
-            if(resetAt>now)until=resetAt;
+            const resetAt=responseResetAt(response.headers,now);if(resetAt)until=resetAt;
         }
         state.blockedUntil=Math.max(state.blockedUntil || 0,until,Number.isFinite(retry)?retry:0);
         state.reason='HTTP '+status;
@@ -287,9 +348,26 @@ export function createQuotaFetch({env=process.env,store,fetchImpl=globalThis.fet
             if(['skylink','vesselapi'].includes(policy.id)) {
                 const filename=policy.id==='skylink'?'skylink-aircraft-identity.json':'vesselapi-identity.json';
                 let previous=null;
-                try{previous=JSON.parse(await fs.readFile(new URL('../worker/.cache/'+filename,import.meta.url),'utf8'));}
+                const legacyDirectory=env.PROVIDER_QUOTA_LEGACY_DIRECTORY ?? process.env.PROVIDER_QUOTA_LEGACY_DIRECTORY;
+                const legacyFile=legacyDirectory?path.join(legacyDirectory,filename):new URL('../worker/.cache/'+filename,import.meta.url);
+                try{previous=JSON.parse(await fs.readFile(legacyFile,'utf8'));}
                 catch(error){if(error.code!=='ENOENT')throw Error('Existing quota state unreadable; request held');}
-                if(previous?.month===new Date(now()).toISOString().slice(0,7))for(const limit of policy.limits)if(limit.id==='internal-30day')limit.initialUsed=Math.max(Number(limit.initialUsed)||0,Number(previous.requests)||0);
+                const month=String(previous?.month||''),year=Number(month.slice(0,4)),monthIndex=Number(month.slice(5,7))-1;
+                if(/^\d{4}-\d{2}$/.test(month)&&monthIndex>=0&&monthIndex<12&&Date.UTC(year,monthIndex,1)<=now()&&Date.UTC(year,monthIndex+1,1)>now()-30*DAY) {
+                    await storage.transact(account,state=>{
+                        state.importedLegacy ||= {};
+                        const source=fingerprint(hostname()+':'+filename+':'+month);
+                        if(state.importedLegacy[source])return;
+                        const count=Math.max(0,Number(previous.requests)||0);
+                        for(const limit of policy.limits.filter(limit=>limit.id==='internal-30day'&&limit.bootstrap)) {
+                            const bucket=bucketFor(state,limit,now());
+                            const covered=Math.min(count,bucket.migratedLegacyCoverage||0),extra=count-covered;
+                            bucket.migratedLegacyCoverage=Math.max(0,(bucket.migratedLegacyCoverage||0)-covered);
+                            if(extra){bucket.events.push({at:now(),cost:extra,imported:true});bucket.used+=extra;bucket.bootstrapPrior+=extra;}
+                        }
+                        state.importedLegacy[source]={count,importedAt:now()};
+                    });
+                }
             }
             const reservation=await storage.transact(account,state=>reserveQuota(state,policy,now()));
             if(!reservation.ok) {
@@ -326,14 +404,28 @@ export function createQuotaFetch({env=process.env,store,fetchImpl=globalThis.fet
 }
 
 export async function getProviderQuotaDiagnostics(policy,{store=getQuotaStore(),now=Date.now()}={}) {
-    return store.transact('account:'+policy.account,state=>({provider:policy.id,plan:state.plan || policy.plan,
+    return store.transact('account:'+policy.account,state=>{
+        const limits=effectiveLimits(state,policy,now);
+        return {provider:policy.id,plan:state.plan || policy.plan,
         attempts:state.attempts || 0,lastCost:state.lastCost,lastStatus:state.lastStatus,lastQuotaErrorAt:state.lastQuotaErrorAt,
         lastSuccessAt:state.lastSuccessAt,usage:state.units,cacheHits:state.cacheHits || 0,cacheHitPercent:100*(state.cacheHits || 0)/Math.max(1,(state.cacheHits || 0)+(state.attempts || 0)),
-        decision:state.lastDecision,blockedUntil:state.blockedUntil,nextRetryAt:state.nextRetryAt,observedRemaining:state.observedRemaining,
-        budgets:[...policy.limits,...(state.observedLimit?[state.observedLimit]:[])].map(limit=>{
+        decision:state.lastDecision,blockedUntil:state.blockedUntil,nextRetryAt:state.nextRetryAt,observedRemaining:state.observedRemaining ?? null,
+        budgets:limits.map(limit=>{
             const bucket=bucketFor(state,limit,now),remaining=Math.max(0,Math.floor(limit.allowance*(1-(limit.reserve || 0)))-bucket.used);
+            const warming=limit.bootstrap&&now-bucket.bootstrapAt<limit.durationMs;
+            const prior=warming?(bucket.bootstrapPrior||0):0;
+            const usable=Math.floor(limit.allowance*(1-(limit.reserve||0)));
+            const daily=limit.bootstrap?Math.max(0,usable-prior)/(limit.durationMs/DAY):limit.paced?Math.max(0,usable-bucket.baseline)/Math.max(1,Math.ceil((bucket.end-bucket.anchor)/DAY)):null;
+            const capacity=limit.bootstrap?(warming?prior+Math.floor(daily*(Math.floor((now-bucket.bootstrapAt)/DAY)+1)):usable):limit.paced?bucket.baseline+Math.floor(daily*(Math.floor((now-bucket.anchor)/DAY)+1)):usable;
+            const spendable=daily===null?remaining:Math.max(0,Math.min(remaining,capacity-bucket.used,Math.max(Number(policy.costs[limit.unit])||0,Math.ceil(daily*2))-bucket.today));
+            const balanceUnit=policy.id==='notac'||policy.id==='opensky'?'credits':['skylink','vesselapi','adsb_lol'].includes(policy.id)?'calls':null;
+            const providerRemaining=balanceUnit===limit.unit?(state.observedRemaining ?? null):null;
             return {id:limit.id,unit:limit.unit,allowance:limit.allowance,reserve:limit.reserve,evidence:limit.evidence,used:bucket.used,today:bucket.today,
-                remaining,resetAt:new Date(bucket.end).toISOString(),forecastPerDay:remaining/Math.max(1,(bucket.end-now)/DAY),
-                forecastDaysToExhaustion:bucket.used>bucket.baseline?remaining/((bucket.used-bucket.baseline)/Math.max(1,(now-bucket.anchor)/DAY)):null};
-        })}));
+                remaining:providerRemaining,providerBalanceObservedAt:providerRemaining===null?null:state.lastResponseAt,internalHeadroom:remaining,currentlySpendable:spendable,
+                history:limit.bootstrap?'PARTIAL; pre-ledger/account history UNKNOWN':'recorded reservations; external account usage may require headers',
+                resetAt:limit.bootstrap?null:new Date(bucket.end).toISOString(),nextBudgetReleaseAt:new Date(limit.bootstrap?Math.min(bucket.end,bucket.bootstrapAt+(Math.floor((now-bucket.bootstrapAt)/DAY)+1)*DAY):bucket.end).toISOString(),
+                forecastPerDay:daily ?? remaining/Math.max(1,(bucket.end-now)/DAY),
+                forecastDaysToExhaustion:!limit.bootstrap&&bucket.used>bucket.baseline?remaining/((bucket.used-bucket.baseline)/Math.max(1,(now-bucket.anchor)/DAY)):null};
+        })};
+    });
 }

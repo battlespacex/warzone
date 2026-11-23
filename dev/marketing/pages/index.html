@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#080b0e">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+
+  <title>StratOps | Every Domain. One Battlespace.</title>
+  <meta name="description"
+    content="Military air and naval activity, satellite orbits, airspace notices, GNSS interference and conflict reporting on one 3D globe. Available source and observation-age context help you examine each signal.">
+  <link rel="canonical" href="<%= domains.publicOrigin %>/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="StratOps by BattlespaceX">
+  <meta property="og:title" content="StratOps | Every Domain. One Battlespace.">
+  <meta property="og:description"
+    content="One 3D globe for military air and naval activity, satellite orbits, NOTAMs, GNSS interference and conflict reports, with available source and timing context.">
+  <meta property="og:url" content="<%= domains.publicOrigin %>/">
+  <meta property="og:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt"
+    content="StratOps by BattlespaceX: 3D OSINT workspace for military activity, airspace notices and strategic context">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="StratOps | Every Domain. One Battlespace.">
+  <meta name="twitter:description"
+    content="Air, sea, space, airspace and conflict signals on one 3D globe, with available source context.">
+  <meta name="twitter:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
+
+  <link rel="preload" as="image" href="/assets/stratops-og-preview.jpg" fetchpriority="high">
+  <!-- CSS and JS are provided by the existing build entry marketing/assets/js/site.js.
+       Keep the original bundler/template asset injection rather than linking to raw source files. -->
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@graph":[
+      {"@type":"Organization","@id":"https://battlespacex.com/#organization","name":"BattlespaceX","url":"https://battlespacex.com/","sameAs":["https://www.linkedin.com/company/battlespacex/","https://www.youtube.com/@battlespacex"]},
+      {"@type":"WebSite","@id":"https://stratops.space/#website","name":"StratOps","alternateName":"StratOps by BattlespaceX","url":"https://stratops.space/","inLanguage":"en","publisher":{"@id":"https://battlespacex.com/#organization"}},
+      {"@type":"SoftwareApplication","@id":"https://stratops.space/#software","name":"StratOps","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"https://stratops.space/","description":"An OSINT-informed, multi-domain situational intelligence and 3D visualization platform covering aircraft, naval activity, orbital context, GNSS, airspace notices and conflict events.","publisher":{"@id":"https://battlespacex.com/#organization"}}
+    ]
+  }
+  </script>
+</head>
+
+<body class="stratops-public">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
+
+  <%= partials("icons") %>
+
+    <%= partials("header") %>
+
+      <main id="main" tabindex="-1">
+        <section class="hero" id="home" aria-labelledby="hero-title">
+          <div class="hero-media" data-parallax data-depth="0.10">
+            <video id="hero-video" class="hero-video" muted loop playsinline preload="none" aria-hidden="true"
+              tabindex="-1" data-src="/assets/stratops-startup-v1.mp4"></video>
+          </div>
+          <div class="hero-shading" aria-hidden="true"></div>
+
+          <div class="hero-content shell">
+            <div class="hero-topline" data-reveal>
+              <img class="hero-logo" src="/assets/stratops.svg" width="248" height="74" alt="StratOps by BattlespaceX">
+            </div>
+            <div class="hero-main" data-reveal>
+              <h1 id="hero-title">EVERY DOMAIN<br><em>ONE BATTLESPACE</em></h1>
+              <p class="hero-lead">Military air and naval activity, satellite orbits, airspace notices, GNSS
+                interference and conflict reporting on one 3D globe. Every signal carries its source and its age.</p>
+              <div class="hero-actions">
+                <a class="btn btn-primary" href="<%= domains.portalOrigin %>/"><span>Enter StratOps</span><svg
+                    aria-hidden="true">
+                    <use href="#icon-arrow" />
+                  </svg></a>
+                <a class="btn clippath-3" href="#platform"><span>See how it works</span></a>
+              </div>
+            </div>
+            <nav class="hero-rail" aria-label="Jump to a domain">
+              <span class="hero-rail-lead">Investigate</span>
+              <a href="#domains" data-domain-link="air">Air</a><a href="#domains" data-domain-link="sea">Sea</a><a
+                href="#domains" data-domain-link="orbit">Space</a><a href="#domains"
+                data-domain-link="notam">Airspace</a><a href="#domains" data-domain-link="gnss">Signals</a><a
+                href="#domains" data-domain-link="conflict">Events</a>
+            </nav>
+          </div>
+          <button class="video-toggle" id="video-toggle" type="button" hidden aria-label="Pause background video">PAUSE
+            MOTION</button>
+        </section>
+
+        <section class="section intro-section shell" id="platform" aria-labelledby="intro-title">
+          <div class="intro-layout">
+            <h2 id="intro-title" class="display-heading" data-reveal>EVERY SIGNAL<br>HAS A<br><span>SECOND STORY</span>
+            </h2>
+            <div class="intro-copy" data-reveal>
+              <span class="mini-rule"></span>
+              <p class="large-copy">A military aircraft changes course. A naval contact goes quiet. An airspace
+                restriction takes effect.
+                For an investigator, the real question is what else was happening in that region.</p>
+              <p>StratOps helps defense researchers, OSINT analysts and conflict reporters examine time, location,
+                source and
+                surrounding activity together. Zoom from a theater to a specific contact, then inspect what the
+                available evidence actually supports.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section domain-section" id="domains" aria-labelledby="domains-title">
+          <div class="shell">
+            <div class="section-heading-row" data-reveal>
+              <h2 id="domains-title" class="display-heading">ONE THEATER<br><span>MANY ANGLES</span></h2>
+              <p class="section-aside">Pick a domain to see the question it helps you answer, and what the evidence
+                can’t prove.</p>
+            </div>
+          </div>
+          <div class="rail-wrap" data-reveal>
+            <div class="domain-rail" id="domain-rail" role="group" aria-label="Explore intelligence domains">
+              <button class="domain-card clippath-1 is-active" type="button" data-domain="air" aria-pressed="true">
+                <span class="domain-number">AIR</span>
+                <div class="domain-icon font-icon stratops-ico-assets-drone-1" aria-hidden="true"></div>
+                <strong>Military aviation</strong>
+                <span>Who is flying, where, and how fresh is the track?</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="sea" aria-pressed="false">
+                <span class="domain-number">SEA</span>
+                <div class="domain-icon font-icon stratops-ico-dock-naval-tracker-2" aria-hidden="true"></div>
+                <strong>Naval activity</strong>
+                <span>A live AIS contact or a published deployment? See both, kept apart.</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="orbit" aria-pressed="false">
+                <span class="domain-number">SPACE</span>
+                <div class="domain-icon font-icon stratops-ico-dock-sats-1" aria-hidden="true"></div>
+                <strong>Orbital intelligence</strong>
+                <span>Where is that satellite predicted to be, and from what data?</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="notam" aria-pressed="false">
+                <span class="domain-number">AIRSPACE</span>
+                <div class="domain-icon font-icon stratops-ico-dock-airspace-1" aria-hidden="true"></div>
+                <strong>NOTAM intelligence</strong>
+                <span>Which published restrictions overlap your theater, and when?</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="gnss" aria-pressed="false">
+                <span class="domain-number">SIGNALS</span>
+                <div class="domain-icon font-icon stratops-ico-dock-intel-wire-2" aria-hidden="true"></div>
+                <strong>GNSS monitoring</strong>
+                <span>Where is navigation degraded, how badly, and for how long?</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="conflict" aria-pressed="false">
+                <span class="domain-number">EVENTS</span>
+                <div class="domain-icon font-icon stratops-ico-bases-army-2" aria-hidden="true"></div>
+                <strong>Conflict intelligence</strong>
+                <span>What was reported, by whom, and where?</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="aoi" aria-pressed="false">
+                <span class="domain-number">GEOSPATIAL</span>
+                <div class="domain-icon font-icon stratops-ico-dock-aoi-1" aria-hidden="true"></div>
+                <strong>AOI intelligence</strong>
+                <span>Draw an area. See what is in it and around it.</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="imagery" aria-pressed="false">
+                <span class="domain-number">OBSERVATIONS</span>
+                <div class="domain-icon font-icon stratops-ico-dock-sats-2" aria-hidden="true"></div>
+                <strong>Satellite observations</strong>
+                <span>Which imagery records are tied to this event, and when were they captured?</span>
+              </button>
+              <button class="domain-card clippath-1" type="button" data-domain="cyber" aria-pressed="false">
+                <span class="domain-number">INFRASTRUCTURE</span>
+                <div class="domain-icon font-icon stratops-ico-dock-cyberspace-1" aria-hidden="true"></div>
+                <strong>Cyber &amp; infrastructure</strong>
+                <span>What is disrupted, according to which sources?</span>
+              </button>
+            </div>
+            <div class="rail-bottom shell">
+              <div class="rail-controls"><span id="rail-count">01 / 09</span><button class="rail-button" id="rail-prev"
+                  type="button" aria-label="Scroll domains left"><svg aria-hidden="true" class="flip-x">
+                    <use href="#icon-chevron" />
+                  </svg></button><button class="rail-button" id="rail-next" type="button"
+                  aria-label="Scroll domains right"><svg aria-hidden="true">
+                    <use href="#icon-chevron" />
+                  </svg></button></div>
+            </div>
+          </div>
+          <div class="shell" data-reveal>
+            <div class="domain-detail" id="domain-detail" aria-live="polite" aria-atomic="true">
+              <div class="detail-label" id="domain-detail-index"><span>D/</span><span>01</span></div>
+              <div class="detail-main">
+                <h3 id="domain-detail-title">Military aviation</h3>
+                <p id="domain-detail-text">Select an observed military track to see altitude, speed, callsign, identity
+                  evidence and source age, then replay its collected history. A missing signal is not proof an aircraft
+                  is absent.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section tools-section shell" id="intelligence" aria-labelledby="tools-title">
+          <div class="section-heading-row" data-reveal>
+            <h2 class="display-heading" id="tools-title">FROM MAP<br><span>TO ANSWER</span></h2>
+            <p class="section-aside">Purpose-built tools for the questions analysts actually ask, from “does this notice
+              apply here?” to “what is inside this area?”</p>
+          </div>
+          <div class="tools-grid">
+            <article class="tool-feature clippath-1 tool-feature-large" data-reveal>
+              <div class="tool-top">
+                <span class="font-icon stratops-ico-dock-report-2" aria-hidden="true"></span>
+                <span>NOTAM &amp; AIRSPACE</span>
+              </div>
+              <h3>See the notice<br><em>Map its reach</em></h3>
+              <p>A restriction only matters in the right place and time. View published notice geometry, effective
+                periods and source text next to regional activity, then capture the exact map view for your briefing.
+              </p>
+              <div class="tool-line"><span>Restriction areas</span><span>Validity windows</span><span>Replacement and
+                  cancellation links</span><span>Take Shot map capture</span></div>
+            </article>
+            <article class="tool-feature clippath-1" data-reveal>
+              <div class="tool-top">
+                <span class="font-icon stratops-ico-hexa-1" aria-hidden="true"></span>
+                <span>GNSS INTERFERENCE</span>
+              </div>
+              <h3>Spot the pattern<br><em>Check the evidence</em></h3>
+              <p>See where navigation degradation was reported, how severe it was and over what period. A highlighted
+                cell shows degradation, not a located jammer.</p>
+              <div class="tool-line"><span>Severity cells</span><span>Time windows</span></div>
+            </article>
+            <article class="tool-feature clippath-1" data-reveal>
+              <div class="tool-top">
+                <span class="font-icon stratops-ico-assets-recon-intel-1" aria-hidden="true"></span>
+                <span>ORBITAL DATA</span>
+              </div>
+              <h3>Follow the orbit<br><em>Not a live camera</em></h3>
+              <p>Track public satellite catalogs by NORAD identity, with predicted ground tracks and data age. Imagery
+                records are separate, with their own capture dates.</p>
+              <div class="tool-line"><span>Ground tracks</span><span>Data epoch</span></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section workflow-section" aria-labelledby="workflow-title">
+          <div class="shell">
+            <div class="workflow-heading" data-reveal>
+              <h2 id="workflow-title" class="display-heading">FIRST REPORT<br><span>TO BRIEFING-READY</span></h2>
+              <p>Start with a question. End with a view you can defend line by line.</p>
+            </div>
+            <ol class="workflow-steps">
+              <li>
+                <span>01</span>
+                <span class="font-icon">
+                  <i class="stratops-ico-global-1" aria-hidden="true"></i>
+                </span>
+                <h3>Pick a theater</h3>
+                <p>Start with a region, a contact or a developing event.</p>
+              </li>
+              <li>
+                <span>02</span>
+                <span class="font-icon">
+                  <i class="stratops-ico-dock-map-layers-1" aria-hidden="true"></i>
+                </span>
+                <h3>Layer the signals</h3>
+                <p>Add air, sea, notices, bases and reports. Toggle each on its own.</p>
+              </li>
+              <li>
+                <span>03</span>
+                <span class="font-icon">
+                  <i class="stratops-ico-dock-intel-wire-2" aria-hidden="true"></i>
+                </span>
+                <h3>Check the evidence</h3>
+                <p>Read source age, identity confidence and history before you conclude.</p>
+              </li>
+              <li>
+                <span>04</span>
+                <span class="font-icon">
+                  <i class="stratops-ico-dock-zoom-1" aria-hidden="true"></i>
+                </span>
+                <h3>Capture the view</h3>
+                <p>Scan an area, save the map and share what the evidence supports.</p>
+              </li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="section evidence-section shell" id="transparency" aria-labelledby="evidence-title">
+          <div class="evidence-layout">
+            <div data-reveal>
+              <h2 id="evidence-title" class="display-heading">EVERY MARKER<br><span>SHOWS ITS WORK</span></h2>
+              <p class="evidence-copy">An AIS ping, a navy press release and a modeled orbit are different kinds of
+                evidence. StratOps never blends them into one icon, so you start from the source, not the symbol.</p>
+              <a class="text-link" href="/intelligence/">Read the intelligence <svg aria-hidden="true">
+                  <use href="#icon-arrow" />
+                </svg></a>
+            </div>
+            <div class="evidence-panels" data-reveal>
+              <article class="ev-observed"><span class="evidence-kind"><i></i>Observed</span>
+                <h3>A timestamp, not total coverage</h3>
+                <p>Aircraft and vessel positions can be stale, partial or missing. Check source time and identity
+                  evidence first.</p>
+              </article>
+              <article class="ev-reported"><span class="evidence-kind"><i></i>Reported</span>
+                <h3>A report, not a live position</h3>
+                <p>A deployment or strike report says what a source claimed and when. It does not say where an asset is
+                  now.</p>
+              </article>
+              <article class="ev-predicted"><span class="evidence-kind"><i></i>Predicted</span>
+                <h3>A model, not a sighting</h3>
+                <p>Orbits and range overlays are calculations. They do not prove sensor activity or coverage.</p>
+              </article>
+            </div>
+          </div>
+
+          <div class="disclosure" data-reveal>
+            <div><strong>Straight answers</strong>
+              <p>What analysts ask before they trust a map.</p>
+            </div>
+            <div class="faq" id="faq">
+              <div class="faq-item">
+                <h3><button class="faq-trigger" type="button" id="faq-q1" aria-expanded="false"
+                    aria-controls="faq-a1">Does StratOps show every military aircraft and warship?<i
+                      aria-hidden="true"></i></button></h3>
+                <div class="faq-panel" id="faq-a1" role="region" aria-labelledby="faq-q1">
+                  <div>
+                    <p>No. What you see depends on public broadcasts, receiver networks, provider access and
+                      identification evidence. A missing or stale track never proves an aircraft or vessel is absent.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="faq-item">
+                <h3><button class="faq-trigger" type="button" id="faq-q2" aria-expanded="false"
+                    aria-controls="faq-a2">Are satellite icons live imagery?<i aria-hidden="true"></i></button></h3>
+                <div class="faq-panel" id="faq-a2" role="region" aria-labelledby="faq-q2">
+                  <div>
+                    <p>No. Satellite positions are propagated from public orbital elements. Imagery records have their
+                      own capture times and metadata. Neither is a live camera feed.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="faq-item">
+                <h3><button class="faq-trigger" type="button" id="faq-q3" aria-expanded="false"
+                    aria-controls="faq-a3">Where does the data come from?<i aria-hidden="true"></i></button></h3>
+                <div class="faq-panel" id="faq-a3" role="region" aria-labelledby="faq-q3">
+                  <div>
+                    <p>Public and provider-supplied sources: ADS-B and AIS networks, official naval publications, public
+                      orbital catalogs, published NOTAMs, GNSS interference summaries, and news and official reports.
+                      Coverage, freshness and access vary by source.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="faq-item">
+                <h3><button class="faq-trigger" type="button" id="faq-q4" aria-expanded="false"
+                    aria-controls="faq-a4">Can I use the NOTAM or GNSS layers for flight decisions?<i
+                      aria-hidden="true"></i></button></h3>
+                <div class="faq-panel" id="faq-a4" role="region" aria-labelledby="faq-q4">
+                  <div>
+                    <p>No. They support analysis, not navigation. For flight, navigation or safety decisions, use the
+                      relevant official authority and current notices.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="faq-item">
+                <h3><button class="faq-trigger" type="button" id="faq-q5" aria-expanded="false"
+                    aria-controls="faq-a5">Is StratOps an official defense or intelligence system?<i
+                      aria-hidden="true"></i></button></h3>
+                <div class="faq-panel" id="faq-a5" role="region" aria-labelledby="faq-q5">
+                  <div>
+                    <p>No. StratOps is an independent public-source analysis and visualization platform from
+                      BattlespaceX. It is not an official military, government, intelligence or emergency service.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section audience-section shell" aria-labelledby="audience-title">
+          <div class="section-heading-row" data-reveal>
+            <h2 id="audience-title" class="display-heading">BUILT FOR PEOPLE<br><span>WHO CHECK THEIR WORK</span></h2>
+          </div>
+          <ul class="audience-grid">
+            <li data-reveal>
+              <h3>Defense researchers</h3>
+              <p>Brief on regional activity with sourced, time-stamped context.</p>
+            </li>
+            <li data-reveal>
+              <h3>OSINT investigators</h3>
+              <p>Cross-check a track against notices, reports and orbital data.</p>
+            </li>
+            <li data-reveal>
+              <h3>Conflict reporters</h3>
+              <p>Place reported events in geography, with source links one click away.</p>
+            </li>
+            <li data-reveal>
+              <h3>Risk analysts</h3>
+              <p>Watch airspace, GNSS and infrastructure disruption by region.</p>
+            </li>
+            <li data-reveal>
+              <h3>Aerospace Industry</h3>
+              <p>Follow public orbital context alongside airspace activity.</p>
+            </li>
+            <li data-reveal>
+              <h3>Educators</h3>
+              <p>Teach geospatial reasoning with real public-source data.</p>
+            </li>
+          </ul>
+        </section>
+
+        <section class="finale" id="access" aria-labelledby="finale-title">
+          <div class="shell finale-inner" data-reveal>
+            <h2 id="finale-title">START WITH ONE SIGNAL<br><em>SEE THE WHOLE THEATER</em></h2>
+            <p>Pick a region. Select a track, a notice or a reported event. StratOps shows you what surrounds it, and
+              how far to trust each piece.</p>
+            <a class="btn btn-primary btn-large" href="<%= domains.portalOrigin %>/">Enter StratOps <svg
+                aria-hidden="true">
+                <use href="#icon-arrow" />
+              </svg></a>
+            <small>Guest and sign-in options are offered at entry. Feature access varies.</small>
+          </div>
+        </section>
+      </main>
+
+      <%= partials("footer") %>
+</body>
+
+</html>

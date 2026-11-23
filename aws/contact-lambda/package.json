@@ -1,0 +1,11 @@
+{
+  "name":"stratops-marketing-contact",
+  "private":true,
+  "type":"module",
+  "version":"1.0.0",
+  "description":"StratOps website serverless SES contact handler",
+  "dependencies":{
+    "@aws-sdk/client-dynamodb":"^3.900.0",
+    "@aws-sdk/client-sesv2":"^3.900.0"
+  }
+}

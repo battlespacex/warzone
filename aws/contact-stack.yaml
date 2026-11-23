@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'StratOps marketing-only contact service - HTTPS API Gateway, Lambda, SES and single-use CAPTCHA tokens.'
+Parameters:
+  ArtifactBucket:
+    Type: String
+    Description: Existing S3 bucket containing a packaged ZIP of aws/contact-lambda
+  ArtifactKey:
+    Type: String
+    Description: S3 key to the packaged Lambda ZIP
+  SenderEmail:
+    Type: String
+    Description: SES-verified sender, e.g. contact@stratops.space
+  RecipientEmail:
+    Type: String
+    Default: bravo@battlespacex.com
+    Description: Email receiving the enquiries
+  SesIdentity:
+    Type: String
+    Description: SES verified identity name used by sender (e.g. stratops.space or an email address)
+  CaptchaSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Random secret, at least 32 characters. Store securely.
+Resources:
+  ContactNonces:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tokenId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tokenId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiry
+        Enabled: true
+  ContactLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: StratOpsContactSend
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Sub 'arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesIdentity}'
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt ContactNonces.Arn
+  ContactFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs22.x
+      Architectures: [x86_64]
+      Handler: handler.handler
+      MemorySize: 192
+      Timeout: 12
+      Role: !GetAtt ContactLambdaRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref ArtifactKey
+      Environment:
+        Variables:
+          CAPTCHA_SECRET: !Ref CaptchaSecret
+          NONCE_TABLE: !Ref ContactNonces
+          FROM_EMAIL: !Ref SenderEmail
+          TO_EMAIL: !Ref RecipientEmail
+          ALLOWED_ORIGINS: 'https://stratops.space,https://www.stratops.space,http://localhost:4174,http://127.0.0.1:4174'
+  ContactApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: stratops-public-contact
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - https://stratops.space
+          - https://www.stratops.space
+          - http://localhost:4174
+          - http://127.0.0.1:4174
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: [content-type]
+        MaxAge: 300
+  ContactIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ContactApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt ContactFunction.Arn
+      PayloadFormatVersion: '2.0'
+  ChallengeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ContactApi
+      RouteKey: 'GET /challenge'
+      Target: !Sub 'integrations/${ContactIntegration}'
+  SubmitRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ContactApi
+      RouteKey: 'POST /contact'
+      Target: !Sub 'integrations/${ContactIntegration}'
+  ContactStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref ContactApi
+      StageName: '$default'
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 2
+        ThrottlingBurstLimit: 5
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ContactFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${ContactApi.ExecutionArn}/*/*'
+Outputs:
+  ContactApiUrl:
+    Description: Enter this HTTPS URL as the marketing contactApiBaseUrl setting, then rebuild.
+    Value: !Sub 'https://${ContactApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'
+  NonceTable:
+    Value: !Ref ContactNonces
+  ContactFunctionName:
+    Value: !Ref ContactFunction

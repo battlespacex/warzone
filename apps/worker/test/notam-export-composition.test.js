@@ -1,3 +1,4 @@
+import {installNoticeTemplates} from './notice-template-dom.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -37,6 +38,7 @@ function harness(overrides={}){
  }
  const document={documentElement:{},fonts:{ready:Promise.resolve()},createElement:tag=>new Element(tag),body:{append(el){root=el;mounted.push(el);}},createRange(){let node,start;return {setStart(n,i){node=n;start=i;},setEnd(){},getBoundingClientRect(){const box=node.owner.getBoundingClientRect();return {left:box.left+start*7,top:box.top,height:18};}};}};
  const context=vm.createContext({document,noticeStatus,getComputedStyle(el){if(el===document.documentElement)return {getPropertyValue:key=>vars[key]||''};const style={...defaults};if(el.className==='notam-export__type')Object.assign(style,{backgroundColor:vars.labelColor||'#00d9d2',clipPath:vars.clip||'polygon(0 0,100% 0,100% 75%,90% 100%,0 100%)',fontSize:'26px',fontWeight:'800',color:'#071a1d'});if(el.className==='notam-export__marker')style.clipPath='polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)';if(el.className==='notam-export__timestamp')style.color=vars.timeColor||'#00d9d2';return style;}});
+ installNoticeTemplates(context);
  vm.runInContext(source.replace(/^\uFEFF/,'').replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
  const canvas=createCanvas(1000,700),ctx=canvas.getContext('2d');ctx.fillStyle='#17242c';ctx.fillRect(0,0,1000,700);
  const logos=[createCanvas(400,80),createCanvas(400,80)];for(const logo of logos){Object.assign(logo,{naturalWidth:400,naturalHeight:80,src:'fixture.svg'});logo.getContext('2d').fillStyle='#ffffff';logo.getContext('2d').fillRect(0,0,400,80);}

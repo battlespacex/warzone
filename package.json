@@ -7,8 +7,8 @@
     "dev": "node scripts/dev.cjs --site",
     "dev:marketing": "node scripts/dev.cjs --config webpack.marketing.config.cjs",
     "dev:app": "node scripts/dev.cjs",
-    "build": "webpack --mode production",
-    "build:marketing": "webpack --config webpack.marketing.config.cjs --mode production",
+    "build": "webpack --mode production && webpack --config webpack.marketing.config.cjs --mode production && node scripts/verify-marketing-build.cjs",
+    "build:marketing": "webpack --config webpack.marketing.config.cjs --mode production && node scripts/verify-marketing-build.cjs --marketing-only",
     "serve:marketing": "node server/serve-public-site.cjs",
     "build:cesium-compact": "webpack --mode production --env cesiumCompact=true && node scripts/build-cesium-compact.cjs",
     "build:cesium-rollback": "npm run build && node scripts/build-cesium-compact.cjs --cleanup",
@@ -16,6 +16,7 @@
     "test:cesium-delivery": "node --test --test-isolation=none scripts/tests/cesium-assets.test.cjs scripts/tests/gnss-concurrency.test.cjs scripts/tests/gnss-load-test.test.cjs",
     "test:api": "npm test --prefix apps/api",
     "test:worker": "npm test --prefix apps/worker",
+    "test:marketing": "node --test tests/contact-validation.test.mjs tests/marketing-config.test.cjs",
     "serve": "node server.js"
   },
   "license": "MIT",
