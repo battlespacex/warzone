@@ -898,7 +898,6 @@ margin-top: 56px;
 
 .method-note p {
   margin: 0;
-  line-height: 1.6;
 }
 
 /* ---------- About ---------- */
@@ -1532,7 +1531,6 @@ margin-top: 56px;
 
 .feature-lead {
   font-size: var(--fs-l);
-  line-height: 1.52;
   color: var(--text);
   max-width: 58ch;
 }
@@ -1694,11 +1692,10 @@ margin-top: 56px;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-family: var(--mono-font);
   font-size: var(--fs-xsmall);
   text-transform: uppercase;
-  letter-spacing: .08em;
-  padding: 13px 8px 3px;
+  letter-spacing: 2px;
+  padding-top: 15px;
   color: var(--subtle);
 }
 
@@ -2502,7 +2499,6 @@ margin-top: 56px;
 
 .demo-copy h2 {
   margin: 0;
-  font-size: var(--fs-h3);
 }
 
 .demo-copy p:not(.sec-tag) {

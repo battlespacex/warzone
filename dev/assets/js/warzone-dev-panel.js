@@ -1115,6 +1115,27 @@ const DEV_MAP_TUNER_FIELDS = [
 
 let __devMapRefreshRaf = 0;
 
+let __devTunerBatchDepth = 0;
+const __devTunerBatchCallbacks = new Set();
+function queueDevTunerUpdate(callback) {
+    if (!__devTunerBatchDepth) return false;
+    __devTunerBatchCallbacks.add(callback);
+    return true;
+}
+function batchDevTunerInitialization(initialize) {
+    __devTunerBatchDepth++;
+    try {
+        return initialize();
+    } finally {
+        __devTunerBatchDepth--;
+        if (!__devTunerBatchDepth) {
+            const pending = [...__devTunerBatchCallbacks];
+            __devTunerBatchCallbacks.clear();
+            pending.forEach(update => update());
+        }
+    }
+}
+
 function getStepPrecision(step = 1) {
     const text = String(step);
     const dot = text.indexOf(".");
@@ -1174,6 +1195,7 @@ function initMapTunerControls() {
     const controls = new Map();
 
     const updateOutput = () => {
+        if (queueDevTunerUpdate(updateOutput)) return;
         if (!output) return;
         const values = {};
         DEV_MAP_TUNER_FIELDS.forEach((def) => {
@@ -1604,9 +1626,11 @@ function initDevEventUiTunerControls() {
     const numericControls = new Map();
 
     const updateOutput = () => {
+        if (queueDevTunerUpdate(updateOutput)) return;
         if (output) output.value = buildDevEventUiCssBlock();
     };
     const updatePreview = () => {
+        if (queueDevTunerUpdate(updatePreview)) return;
         if (__devEventUiPreviewVisible) openDevEventUiPreview(false);
         refreshEventMarkerTuning();
         window.__warzoneViewer?.scene?.requestRender?.();
@@ -1740,9 +1764,11 @@ function initDevOrbitalUiTunerControls() {
     const controls = new Map();
 
     const updateOutput = () => {
+        if (queueDevTunerUpdate(updateOutput)) return;
         if (output) output.value = buildDevOrbitalUiCssBlock();
     };
     const refreshOrbitalLayer = () => {
+        if (queueDevTunerUpdate(refreshOrbitalLayer)) return;
         window.refreshWarzoneMilSatsScale?.();
         window.__warzoneViewer?.scene?.requestRender?.();
     };
@@ -1851,6 +1877,7 @@ function initStartupSceneTunerControls({
     const controls = new Map();
 
     const updateOutput = () => {
+        if (queueDevTunerUpdate(updateOutput)) return;
         if (output) output.value = buildDevStartupSceneBlock(prefix);
     };
     const applyCssValue = (def, nextValue, source = "", preview = true) => {
@@ -2406,6 +2433,10 @@ function applyLiveAssetRendererQuality() {
     if ("exposure" in scene) scene.exposure = exposure;
 }
 function refreshLiveAssetVisualsNow() {
+    if (__devLiveAssetRefreshRaf) {
+        cancelAnimationFrame(__devLiveAssetRefreshRaf);
+        __devLiveAssetRefreshRaf = 0;
+    }
     applyLiveAssetRendererQuality();
     const aircraftSelection = getLiveTrackSelection?.();
     if (String(aircraftSelection?.mode || "") === "focus" && aircraftSelection?.track_key) {
@@ -2442,6 +2473,7 @@ function initLiveAssetTunerControls() {
     const controls = new Map();
 
     const updateOutput = () => {
+        if (queueDevTunerUpdate(updateOutput)) return;
         if (!output) return;
         const values = {};
         DEV_LIVE_ASSET_FIELDS.forEach((def) => {
@@ -3632,15 +3664,19 @@ export function initDevPanel() {
     });
     if (isLocalDeveloperFeatureEnabled("aircraftSimulation")) initDevSimulatorControls();
     if (isLocalDeveloperFeatureEnabled("fictionalAlerts")) initDevAlertUiPreviewControls();
-    if (isLocalDeveloperFeatureEnabled("environmentControls")) initMapTunerControls();
-    if (isLocalDeveloperFeatureEnabled("scenarioControls")) initDevEventUiTunerControls();
-    if (isLocalDeveloperFeatureEnabled("environmentControls")) initDevVisualInspectionControls();
-    if (isLocalDeveloperFeatureEnabled("satelliteControls")) initDevOrbitalUiTunerControls();
-    if (isLocalDeveloperFeatureEnabled("environmentControls")) {
-        initDevStartupSceneTunerControls();
-        initIntroStartupSceneTunerControls();
-        initLiveAssetTunerControls();
-    }
+    const tunerStart = performance.now();
+    batchDevTunerInitialization(() => {
+        if (isLocalDeveloperFeatureEnabled("environmentControls")) initMapTunerControls();
+        if (isLocalDeveloperFeatureEnabled("scenarioControls")) initDevEventUiTunerControls();
+        if (isLocalDeveloperFeatureEnabled("environmentControls")) initDevVisualInspectionControls();
+        if (isLocalDeveloperFeatureEnabled("satelliteControls")) initDevOrbitalUiTunerControls();
+        if (isLocalDeveloperFeatureEnabled("environmentControls")) {
+            initDevStartupSceneTunerControls();
+            initIntroStartupSceneTunerControls();
+            initLiveAssetTunerControls();
+        }
+    });
+    performance.measure?.("stratops-dev-tuners", { start: tunerStart, end: performance.now() });
     annotateDevPanelSections();
     initDevPanelAccordions();
     initDevPanelSectionFilter();

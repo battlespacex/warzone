@@ -1560,6 +1560,9 @@ function getLiveGlbModelQualityConfig(track = {}) {
 }
 function applyLiveGlbModelQuality(model, track = {}) {
     if (!model) return;
+    // Aircraft use absolute flight coordinates, like their trails. Terrain
+    // exaggeration must not lift or stretch the model away from that anchor.
+    model.enableVerticalExaggeration = false;
     const quality = getLiveGlbModelQualityConfig(track);
     model.imageBasedLightingFactor = quality.imageBasedLightingFactor;
     model.lightColor = quality.lightColor;
@@ -2415,6 +2418,7 @@ function buildLiveTrackModelGraphics(modelUri, subtypeScale, subtypeMinPixelSize
     const modelQuality = getLiveGlbModelQualityConfig(track);
     return {
         uri: modelUri,
+        enableVerticalExaggeration: false,
         scale: subtypeScale,
         minimumPixelSize: subtypeMinPixelSize,
         maximumScale: subtypeMaxScale,

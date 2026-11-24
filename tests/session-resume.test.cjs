@@ -68,13 +68,22 @@ test('local diagnostics are opt-in, bounded, idempotent, suspension-aware and fu
     document.visibilityState = 'visible';
     document.body = { classList: { contains: () => true } };
     document.getElementById = () => ({ hidden: true });
+    const canvas = new Events(); canvas.clientWidth = 1000; canvas.clientHeight = 800;
     const viewer = { scene: { postRender, requestRenderMode: true,
-        canvas: { clientWidth: 1000, clientHeight: 800 }, screenSpaceCameraController: { enableInputs: true } }, entities: { values: [] } };
-    const c = vm.createContext({ window, document, getRealtimeStats: () => ({ queueDepth: 2, pendingVisualCandidates: 1 }),
+        canvas, screenSpaceCameraController: { enableInputs: true } }, entities: { values: [] } };
+    const observers = [];
+    class Observer {
+        constructor(callback) { this.callback = callback; this.disconnected = false; observers.push(this); }
+        observe(options) { this.type = options.type; }
+        disconnect() { this.disconnected = true; }
+    }
+    const c = vm.createContext({ window, document, PerformanceObserver: Observer,
+        ResourceCache: { statistics: { geometryByteLength: 0, texturesByteLength: 0 } },
+        getRealtimeStats: () => ({ queueDepth: 2, pendingVisualCandidates: 1 }),
         performance: { now: () => clock }, requestAnimationFrame: fn => { frames.set(++next, fn); return next; },
         cancelAnimationFrame: id => frames.delete(id) });
     vm.runInContext(fs.readFileSync('dev/assets/js/warzone-session-diagnostics.js', 'utf8')
-        .replace(/^import .*;\r?\n/m, '').replace(/\bexport /g, ''), c);
+        .replace(/^import .*;\r?\n/gm, '').replace(/\bexport /g, ''), c);
     assert.equal(c.installSessionDiagnostics(), null);
     window.location.hostname = 'app.stratops.space';
     assert.equal(c.installSessionDiagnostics({ development: true }), null);
@@ -103,8 +112,20 @@ test('local diagnostics are opt-in, bounded, idempotent, suspension-aware and fu
     step(); step();
     assert.equal(api.snapshot().frameIntervalsMs[0], 17, 'suspended time is excluded');
     assert.equal(postRender.numberOfListeners, 1);
+    assert.equal(canvas.numberOfListeners, 2);
+    canvas.emit('webglcontextlost'); canvas.emit('webglcontextrestored');
+    assert.ok(api.snapshot().lifecycle.some(event => event.type === 'webglcontextrestored'));
+    const marks = observers.find(observer => observer.type === 'mark');
+    for (let i = 0; i < 100; i++) marks.callback({ getEntries: () => [
+        { name: 'stratops-viewer-created', startTime: i }, { name: 'unrelated', startTime: i },
+    ] });
+    assert.equal(api.snapshot().entryAllocationSamples.length, 32);
+    assert.equal(api.snapshot().entryAllocationSamples.at(-1).markAt, 99);
+    assert.equal(api.snapshot().entryAllocationSamples.at(-1).heapUsedBytes, null);
     api.dispose();
+    assert.ok(observers.every(observer => observer.disconnected));
     assert.equal(frames.size, 0);
     assert.equal(document.numberOfListeners + window.numberOfListeners + postRender.numberOfListeners, 0);
+    assert.equal(canvas.numberOfListeners, 0);
     assert.equal(window.__stratopsSessionDiagnostics, undefined);
 });

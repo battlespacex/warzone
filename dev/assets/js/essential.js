@@ -9929,13 +9929,18 @@ async function initializeWarzoneAppOnce() {
                     ? Math.max(0, now - __lastBackgroundAt)
                     : 0;
                 const wasVisibilitySuspended = __visibilityPipelinesSuspended;
-                const lifecycleResumed = window.__warzoneLifecycle?.resume?.("document-foreground") === true;
-                resumeForegroundLivePipelines({ backgroundIdleMs });
-                if ((now - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
+                const lifecycleWasPaused = window.__warzoneLifecycle?.getState?.()?.paused === true;
+                const recoveryNow = performance.now();
+                // Coalesce visibility/focus/pageshow before they reset every live
+                // aircraft and restart feeds. A new suspension must still resume.
+                if (!wasVisibilitySuspended && !lifecycleWasPaused && __lastForegroundRecoveryAt > 0 &&
+                    (recoveryNow - __lastForegroundRecoveryAt) < FOREGROUND_RECOVERY_THROTTLE_MS) {
                     forceForegroundViewerWake({ reason: "foreground-throttle", backgroundIdleMs });
                     return;
                 }
-                __lastForegroundRecoveryAt = now;
+                __lastForegroundRecoveryAt = recoveryNow;
+                const lifecycleResumed = window.__warzoneLifecycle?.resume?.("document-foreground") === true;
+                resumeForegroundLivePipelines({ backgroundIdleMs });
                 __lastBackgroundAt = now;
                 ++__foregroundRecoverySeq;
                 if (wasVisibilitySuspended && !lifecycleResumed) {
