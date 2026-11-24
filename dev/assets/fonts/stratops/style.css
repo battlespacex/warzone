@@ -24,6 +24,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.stratops-ico-dock-gnss-2:before {
+  content: "\e954";
+}
 .stratops-ico-calender-1:before {
   content: "\e953";
 }
@@ -42,6 +45,9 @@
 .stratops-ico-assets-gnss-1:before {
   content: "\e94f";
 }
+.stratops-ico-square-1:before {
+  content: "\e955";
+}
 .stratops-ico-hexa-1:before {
   content: "\e93f";
 }
@@ -56,6 +62,12 @@
 }
 .stratops-ico-pause-1:before {
   content: "\e945";
+}
+.stratops-ico-next-2:before {
+  content: "\e956";
+}
+.stratops-ico-previous-2:before {
+  content: "\e957";
 }
 .stratops-ico-next-1:before {
   content: "\e900";
@@ -222,6 +234,9 @@
 .stratops-ico-dock-airspace-3:before {
   content: "\e943";
 }
+.stratops-ico-dock-gnss-1:before {
+  content: "\e958";
+}
 .stratops-ico-dock-sats-1:before {
   content: "\e94a";
 }
@@ -237,11 +252,17 @@
 .stratops-ico-dock-intel-wire-2:before {
   content: "\e946";
 }
+.stratops-ico-dock-notam-1:before {
+  content: "\e959";
+}
 .stratops-ico-dock-strike-counter-1:before {
   content: "\e930";
 }
 .stratops-ico-dock-report-1:before {
   content: "\e93e";
+}
+.stratops-ico-dock-report-4:before {
+  content: "\e95a";
 }
 .stratops-ico-dock-report-2:before {
   content: "\e94c";

@@ -618,6 +618,10 @@ res.json({ reports, history_limit: reportType === "72hour" ? config.hour72.publi
     });
 
     router.post("/reports/generate", express.json({ limit: "128kb" }), async (req, res) => {
+        // Public visitors consume completed reports; generation is operator-only.
+        if (!isAuthorizedCaptureRequest(req, process.env.STRATOPS_REPORT_GENERATION_TOKEN)) {
+            return res.status(403).json({ error: "Report generation requires operator authorization." });
+        }
         try {
             const config = readReportingConfig();
             if (!config.apiEnabled) {

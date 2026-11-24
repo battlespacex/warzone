@@ -1,0 +1,1 @@
+window.STRATOPS_PUBLIC_ACCESS=!0;

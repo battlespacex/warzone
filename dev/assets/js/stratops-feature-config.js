@@ -258,7 +258,14 @@ const configuredFeatures = isPlainObject(window.STRATOPS_FEATURES)
 
 window.STRATOPS_FEATURES = configuredFeatures;
 
+// This controls public UI capabilities, never identity or server permissions.
+export function isStratOpsPublicAccessEnabled() {
+    return window.STRATOPS_PUBLIC_ACCESS !== false;
+}
+
 export function isStratOpsFeatureEnabled(path, fallback = true) {
+    if (path === "access.public") return isStratOpsPublicAccessEnabled();
+    if (isStratOpsPublicAccessEnabled() && ["header.login", "system.authentication", "system.billing"].includes(path)) return false;
     const value = readPath(window.STRATOPS_FEATURES, path);
     return value === undefined ? Boolean(fallback) : value !== false;
 }
@@ -283,6 +290,7 @@ export function getStratOpsDockWidgetFeaturePath(widgetId = "") {
 
 export function applyStratOpsFeatureVisibility(root = document) {
     if (!root?.querySelectorAll) return;
+    document.body?.classList.toggle("is-public-access", isStratOpsPublicAccessEnabled());
     Object.entries(FEATURE_SELECTOR_MAP).forEach(([path, selector]) => {
         const enabled = isStratOpsFeatureEnabled(path);
         root.querySelectorAll(selector).forEach((node) => {

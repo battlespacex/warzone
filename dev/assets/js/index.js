@@ -537,6 +537,11 @@ if (isPosterGeneratorPage) {
     }, { once: true });
 } else document.addEventListener("DOMContentLoaded", async () => {
     try {
+        if (__STRATOPS_DEV_TOOLS__ && new URLSearchParams(window.location.search).get("sessionDiagnostics") === "1") {
+            void import("./warzone-session-diagnostics.js")
+                .then(module => module.installSessionDiagnostics({ development: true }))
+                .catch(error => console.warn("Session diagnostics unavailable:", error));
+        }
         if (window.__stratopsConfig.basemap.provider === "selfhosted") {
             const basemapCredit = document.getElementById("wz-basemap-provider-credit");
             if (basemapCredit) basemapCredit.textContent = "Built with CesiumJS, using self-hosted Natural Earth relief.";

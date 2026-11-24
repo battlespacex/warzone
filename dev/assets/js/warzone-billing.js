@@ -1,3 +1,5 @@
+import { isStratOpsPublicAccessEnabled } from "./stratops-feature-config.js";
+
 const BILLING_TIER_KEY = "stratops:billing-tier";
 const BILLING_ENABLED_KEY = "stratops:billing-enabled";
 const DEFAULT_CHECKOUT_URL = "";
@@ -37,10 +39,10 @@ function normalizeTier(tier = "free") {
 
 function getBillingConfig() {
     const cfg = window.__stratopsConfig?.billing || {};
-    let enabled = cfg.enabled === true;
+    let enabled = cfg.enabled === true && !isStratOpsPublicAccessEnabled();
     const allowLocalBillingOverride = cfg.allowLocalBillingOverride === true;
     try {
-        if (allowLocalBillingOverride && localStorage.getItem(BILLING_ENABLED_KEY) === "1") enabled = true;
+        if (!isStratOpsPublicAccessEnabled() && allowLocalBillingOverride && localStorage.getItem(BILLING_ENABLED_KEY) === "1") enabled = true;
     } catch {
         // Storage is optional; billing still works with in-memory defaults.
     }

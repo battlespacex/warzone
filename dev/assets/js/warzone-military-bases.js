@@ -1,5 +1,6 @@
 ﻿// File Path: /assets/js/warzone-military-bases.js
 import * as Cesium from "cesium";
+import { isStratOpsPublicAccessEnabled } from "./stratops-feature-config.js";
 import { MILITARY_BASES } from "./warzone-military-bases-data.js";
 import { normalizeMilitaryBaseDisplayData } from "./warzone-military-base-quality.js";
 
@@ -731,7 +732,7 @@ export function initWarzoneMilitaryBases(viewer) {
     __state.initialized = true;
 
     // Gate behind authentication — check if already logged in at init time
-    __state.authGated = !document.body.classList.contains("is-authenticated");
+    __state.authGated = !isStratOpsPublicAccessEnabled() && !document.body.classList.contains("is-authenticated");
 
     // Use a CustomDataSource so bases are isolated from viewer.entities.removeAll().
     // Retain it while either the base layer or CTR airbase highlighting needs it.

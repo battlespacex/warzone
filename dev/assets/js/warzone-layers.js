@@ -228,6 +228,7 @@ function getLayerDef(id) {
 }
 
 function hasPremiumAccess() {
+    if (isStratOpsFeatureEnabled("access.public")) return true;
     const isAuthenticated = !!window.__stratopsAuthState?.isAuthenticated;
     if (!isAuthenticated) return false;
     const body = document.body;
@@ -910,7 +911,7 @@ function syncLayerItemState(item, id) {
 
     item.classList.toggle("is-on", enabled);
     item.classList.toggle("is-locked", locked);
-    item.classList.toggle("is-premium", !!def?.premium);
+    item.classList.toggle("is-premium", !!def?.premium && !isStratOpsFeatureEnabled("access.public"));
     item.setAttribute("aria-disabled", locked ? "true" : "false");
     item.setAttribute("data-locked", locked ? "true" : "false");
 
@@ -1023,7 +1024,7 @@ export function refreshLayerAccessUi() {
 }
 
 function renderLayerBadge(layer) {
-    if (!layer.premium) return "";
+    if (!layer.premium || isStratOpsFeatureEnabled("access.public")) return "";
     return `<span class="wz-layer-badge" aria-hidden="true">Premium</span>`;
 }
 
@@ -1053,7 +1054,7 @@ function renderLayerRow(layer) {
     const blocked = isTrackerBlockedLayer(layer.id) || isOrbitalBlockedLayer(layer.id);
     const locked = (layer.premium && !canUseLayer(layer.id)) || blocked;
     return `
-        <div class="wz-layer-item${getEffectiveLayerState(layer.id) ? " is-on" : ""}${layer.premium ? " is-premium" : ""}${locked ? " is-locked" : ""}"
+        <div class="wz-layer-item${getEffectiveLayerState(layer.id) ? " is-on" : ""}${layer.premium && !isStratOpsFeatureEnabled("access.public") ? " is-premium" : ""}${locked ? " is-locked" : ""}"
              data-layer="${layer.id}"
              aria-disabled="${locked ? "true" : "false"}"
              data-locked="${locked ? "true" : "false"}"

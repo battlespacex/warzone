@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://stratops.space/</loc></url>
+  <url><loc>https://stratops.space/advantage/</loc></url>
   <url><loc>https://stratops.space/capabilities/</loc></url>
   <url><loc>https://stratops.space/intelligence/</loc></url>
   <url><loc>https://stratops.space/about/</loc></url>
   <url><loc>https://stratops.space/contact/</loc></url>
+  <url><loc>https://stratops.space/partners/</loc></url>
 </urlset>

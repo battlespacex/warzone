@@ -8,16 +8,16 @@
   <meta name="theme-color" content="#080b0e">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
 
-  <title>StratOps | Every Domain. One Battlespace.</title>
+  <title>StratOps | Decision Advantage in a 3D Operational Battlespace</title>
   <meta name="description"
-    content="Military air and naval activity, satellite orbits, airspace notices, GNSS interference and conflict reporting on one 3D globe. Available source and observation-age context help you examine each signal.">
+    content="StratOps unifies military tracking, conflict intelligence, orbital context, 48-hour operational reports and shareable captures in a command-grade 3D battlespace.">
   <link rel="canonical" href="<%= domains.publicOrigin %>/">
 
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="StratOps by BattlespaceX">
-  <meta property="og:title" content="StratOps | Every Domain. One Battlespace.">
+  <meta property="og:title" content="StratOps | Decision Advantage in a 3D Operational Battlespace">
   <meta property="og:description"
-    content="One 3D globe for military air and naval activity, satellite orbits, NOTAMs, GNSS interference and conflict reports, with available source and timing context.">
+    content="StratOps unifies military tracking, conflict intelligence, orbital context, 48-hour operational reports and shareable captures in a command-grade 3D battlespace.">
   <meta property="og:url" content="<%= domains.publicOrigin %>/">
   <meta property="og:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
   <meta property="og:image:width" content="1200">
@@ -26,9 +26,9 @@
     content="StratOps by BattlespaceX: 3D OSINT workspace for military activity, airspace notices and strategic context">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="StratOps | Every Domain. One Battlespace.">
+  <meta name="twitter:title" content="StratOps | Decision Advantage in a 3D Operational Battlespace">
   <meta name="twitter:description"
-    content="Air, sea, space, airspace and conflict signals on one 3D globe, with available source context.">
+    content="StratOps unifies military tracking, conflict intelligence, orbital context, 48-hour operational reports and shareable captures in a command-grade 3D battlespace.">
   <meta name="twitter:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
 
   <link rel="preload" as="image" href="/assets/stratops-og-preview.jpg" fetchpriority="high">
@@ -63,19 +63,15 @@
           <div class="hero-shading" aria-hidden="true"></div>
 
           <div class="hero-content shell">
-            <div class="hero-topline" data-reveal>
-              <img class="hero-logo" src="/assets/stratops.svg" width="248" height="74" alt="StratOps by BattlespaceX">
-            </div>
             <div class="hero-main" data-reveal>
-              <h1 id="hero-title">EVERY DOMAIN<br><em>ONE BATTLESPACE</em></h1>
-              <p class="hero-lead">Military air and naval activity, satellite orbits, airspace notices, GNSS
-                interference and conflict reporting on one 3D globe. Every signal carries its source and its age.</p>
+              <h1 id="hero-title">DECISION ADVANTAGE<br><em>ACROSS EVERY DOMAIN</em></h1>
+              <p class="hero-lead">StratOps brings military-focused public intelligence, observed aircraft and naval
+                activity, orbital predictions, satellite context and operational reporting into one immersive 3D
+                battlespace. Investigate the available evidence, understand regional activity and prepare
+                better-informed briefings.</p>
               <div class="hero-actions">
-                <a class="btn btn-primary" href="<%= domains.portalOrigin %>/"><span>Enter StratOps</span><svg
-                    aria-hidden="true">
-                    <use href="#icon-arrow" />
-                  </svg></a>
-                <a class="btn clippath-3" href="#platform"><span>See how it works</span></a>
+                <a class="btn btn-primary" href="<%= domains.portalOrigin %>/"><span>Enter StratOps</span></a>
+                <a class="btn btn-ghost" href="/advantage/"><span>See What Makes StratOps Different</span></a>
               </div>
             </div>
             <nav class="hero-rail" aria-label="Jump to a domain">
@@ -86,13 +82,16 @@
                 href="#domains" data-domain-link="conflict">Events</a>
             </nav>
           </div>
-          <button class="video-toggle" id="video-toggle" type="button" hidden aria-label="Pause background video">PAUSE
-            MOTION</button>
+          <button class="video-toggle" id="video-toggle" type="button" hidden aria-label="Play background video">
+            <span class="video-play-glyph" aria-hidden="true"></span>
+            <span class="video-toggle-label">PLAY MOTION</span>
+          </button>
         </section>
 
         <section class="section intro-section shell" id="platform" aria-labelledby="intro-title">
           <div class="intro-layout">
-            <h2 id="intro-title" class="display-heading" data-reveal>EVERY SIGNAL<br>HAS A<br><span>SECOND STORY</span>
+            <h2 id="intro-title" class="display-heading" data-reveal>FROM RAW SIGNALS<br>TO <span>BETTER
+                DECISIONS</span>
             </h2>
             <div class="intro-copy" data-reveal>
               <span class="mini-rule"></span>
@@ -117,69 +116,114 @@
           </div>
           <div class="rail-wrap" data-reveal>
             <div class="domain-rail" id="domain-rail" role="group" aria-label="Explore intelligence domains">
+
               <button class="domain-card clippath-1 is-active" type="button" data-domain="air" aria-pressed="true">
-                <span class="domain-number">AIR</span>
-                <div class="domain-icon font-icon stratops-ico-assets-drone-1" aria-hidden="true"></div>
-                <strong>Military aviation</strong>
-                <span>Who is flying, where, and how fresh is the track?</span>
+                <div>
+                  <span class="domain-number">AIR</span>
+                  <div class="domain-icon font-icon stratops-ico-assets-air-1" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>Military <br> Aviation</strong>
+                  <span>Who is flying, where, and how fresh is the track?</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="sea" aria-pressed="false">
-                <span class="domain-number">SEA</span>
-                <div class="domain-icon font-icon stratops-ico-dock-naval-tracker-2" aria-hidden="true"></div>
-                <strong>Naval activity</strong>
-                <span>A live AIS contact or a published deployment? See both, kept apart.</span>
+                <div>
+                  <span class="domain-number">SEA</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-naval-tracker-2" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>Naval <br> Activity</strong>
+                  <span>A live AIS contact or a published deployment? See both, kept apart.</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="orbit" aria-pressed="false">
-                <span class="domain-number">SPACE</span>
-                <div class="domain-icon font-icon stratops-ico-dock-sats-1" aria-hidden="true"></div>
-                <strong>Orbital intelligence</strong>
-                <span>Where is that satellite predicted to be, and from what data?</span>
+                <div>
+                  <span class="domain-number">SPACE</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-sats-1" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>Orbital <br> Intelligence</strong>
+                  <span>Where is that satellite predicted to be, and from what data?</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="notam" aria-pressed="false">
-                <span class="domain-number">AIRSPACE</span>
-                <div class="domain-icon font-icon stratops-ico-dock-airspace-1" aria-hidden="true"></div>
-                <strong>NOTAM intelligence</strong>
-                <span>Which published restrictions overlap your theater, and when?</span>
+                <div>
+                  <span class="domain-number">AIRSPACE</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-notam-1" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>NOTAM <br> Intelligence</strong>
+                  <span>Which published restrictions overlap your theater, and when?</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="gnss" aria-pressed="false">
-                <span class="domain-number">SIGNALS</span>
-                <div class="domain-icon font-icon stratops-ico-dock-intel-wire-2" aria-hidden="true"></div>
-                <strong>GNSS monitoring</strong>
-                <span>Where is navigation degraded, how badly, and for how long?</span>
+                <div>
+                  <span class="domain-number">SIGNALS</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-gnss-1" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>GNSS <br> Monitoring</strong>
+                  <span>Where is navigation degraded, how badly, and for how long?</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="conflict" aria-pressed="false">
-                <span class="domain-number">EVENTS</span>
-                <div class="domain-icon font-icon stratops-ico-bases-army-2" aria-hidden="true"></div>
-                <strong>Conflict intelligence</strong>
-                <span>What was reported, by whom, and where?</span>
+                <div>
+                  <span class="domain-number">EVENTS</span>
+                  <div class="domain-icon font-icon stratops-ico-bases-army-2" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>Conflict <br> Intelligence</strong>
+                  <span>What was reported, by whom, and where?</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="aoi" aria-pressed="false">
-                <span class="domain-number">GEOSPATIAL</span>
-                <div class="domain-icon font-icon stratops-ico-dock-aoi-1" aria-hidden="true"></div>
-                <strong>AOI intelligence</strong>
-                <span>Draw an area. See what is in it and around it.</span>
+                <div>
+                  <span class="domain-number">GEOSPATIAL</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-aoi-1" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>AOI <br> Intelligence</strong>
+                  <span>Draw an area. See what is in it and around it.</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="imagery" aria-pressed="false">
-                <span class="domain-number">OBSERVATIONS</span>
-                <div class="domain-icon font-icon stratops-ico-dock-sats-2" aria-hidden="true"></div>
-                <strong>Satellite observations</strong>
-                <span>Which imagery records are tied to this event, and when were they captured?</span>
+                <div>
+                  <span class="domain-number">OBSERVATIONS</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-sats-2" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>Satellite <br> Observations</strong>
+                  <span>Which imagery records are tied to this event, and when were they captured?</span>
+                </div>
               </button>
+
               <button class="domain-card clippath-1" type="button" data-domain="cyber" aria-pressed="false">
-                <span class="domain-number">INFRASTRUCTURE</span>
-                <div class="domain-icon font-icon stratops-ico-dock-cyberspace-1" aria-hidden="true"></div>
-                <strong>Cyber &amp; infrastructure</strong>
-                <span>What is disrupted, according to which sources?</span>
+                <div>
+                  <span class="domain-number">INFRASTRUCTURE</span>
+                  <div class="domain-icon font-icon stratops-ico-dock-cyberspace-1" aria-hidden="true"></div>
+                </div>
+                <div>
+                  <strong>Cyber &amp; infrastructure</strong>
+                  <span>What is disrupted, according to which sources?</span>
+                </div>
               </button>
             </div>
             <div class="rail-bottom shell">
-              <div class="rail-controls"><span id="rail-count">01 / 09</span><button class="rail-button" id="rail-prev"
-                  type="button" aria-label="Scroll domains left"><svg aria-hidden="true" class="flip-x">
-                    <use href="#icon-chevron" />
-                  </svg></button><button class="rail-button" id="rail-next" type="button"
-                  aria-label="Scroll domains right"><svg aria-hidden="true">
-                    <use href="#icon-chevron" />
-                  </svg></button></div>
+              <div class="rail-controls">
+                <span id="rail-count">01 / 09</span>
+                <button class="rail-button" id="rail-prev" type="button" aria-label="Scroll domains left"><span
+                    class="font-icon stratops-ico-previous-2" aria-hidden="true"></span></button>
+                <button class="rail-button" id="rail-next" type="button" aria-label="Scroll domains right"><span
+                    class="font-icon stratops-ico-next-2" aria-hidden="true"></span></button>
+              </div>
             </div>
           </div>
           <div class="shell" data-reveal>
@@ -216,7 +260,7 @@
             </article>
             <article class="tool-feature clippath-1" data-reveal>
               <div class="tool-top">
-                <span class="font-icon stratops-ico-hexa-1" aria-hidden="true"></span>
+                <span class="font-icon stratops-ico-dock-gnss-2" aria-hidden="true"></span>
                 <span>GNSS INTERFERENCE</span>
               </div>
               <h3>Spot the pattern<br><em>Check the evidence</em></h3>
@@ -237,11 +281,70 @@
           </div>
         </section>
 
+        <section class="section shell home-proof" id="decision-advantage" aria-labelledby="advantage-title">
+          <div class="feature-heading" data-reveal>
+            <div>
+              <p class="sec-tag">A FASTER PATH TO OPERATIONAL CLARITY</p>
+              <h2 class="display-heading" id="advantage-title">LESS TIME COLLECTING.<br><span>MORE TIME
+                  ASSESSING.</span></h2>
+            </div>
+            <p class="feature-lead">From the first signal to the briefing: review, visualize and communicate without
+              constantly switching between disconnected tools.</p>
+          </div>
+          <div class="media-grid home-proof-grid">
+            <article class="feature-card" data-reveal>
+              <div class="img-slot is-placeholder" data-slot="HOME-REPORT" role="img"
+                aria-label="Suggested image: Real PDF operational report overview showing the latest 48-hour period.">
+                <span class="slot-label"><b>IMAGE / HOME-REPORT</b><i>1200×675 · 16:9</i><em>Real PDF operational report
+                    overview showing the latest 48-hour period.</em></span>
+              </div>
+              <div class="feature-caption"><span class="font-icon stratops-ico-dock-report-1" aria-hidden="true"></span>
+                <div><span>01 / REPORT</span>
+                  <h3>Review the last 48 hours</h3>
+                  <p>Open available reports and download the operational briefing.</p><a class="text-link"
+                    href="/advantage/#reports">Explore reports</a>
+                </div>
+              </div>
+            </article>
+            <article class="feature-card" data-reveal>
+              <div class="img-slot is-placeholder" data-slot="HOME-TAKE-SHOT" role="img"
+                aria-label="Suggested image: StratOps NOTAM take-shot showing the framed restriction area and saved screenshot.">
+                <span class="slot-label"><b>IMAGE / HOME-TAKE-SHOT</b><i>1200×675 · 16:9</i><em>StratOps NOTAM take-shot
+                    showing the framed restriction area and saved screenshot.</em></span>
+              </div>
+              <div class="feature-caption"><span class="font-icon stratops-ico-dock-screenshot-1"
+                  aria-hidden="true"></span>
+                <div><span>02 / CAPTURE</span>
+                  <h3>Frame the operational picture</h3>
+                  <p>Save NOTAM areas and shareable battlespace captures.</p><a class="text-link"
+                    href="/advantage/#capture">Explore Take Shot</a>
+                </div>
+              </div>
+            </article>
+            <article class="feature-card" data-reveal>
+              <div class="img-slot real-shot" data-slot="HOME-3D-ASSET"><img
+                  src="/assets/images/web/stratops-military-aircraft.webp"
+                  alt="StratOps 3D military aircraft model above the geospatial terrain" loading="lazy" decoding="async"
+                  width="1600" height="900"><span class="shot-caption" aria-hidden="true">MODELLED MILITARY
+                  AVIATION</span></div>
+              <div class="feature-caption"><span class="font-icon stratops-ico-dock-3d-layered-1"
+                  aria-hidden="true"></span>
+                <div><span>03 / VISUALIZE</span>
+                  <h3>Military assets, modeled in 3D</h3>
+                  <p>Explore supported air, naval and orbital asset models.</p><a class="text-link"
+                    href="/advantage/#visualization">Explore 3D assets</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
         <section class="section workflow-section" aria-labelledby="workflow-title">
           <div class="shell">
             <div class="workflow-heading" data-reveal>
-              <h2 id="workflow-title" class="display-heading">FIRST REPORT<br><span>TO BRIEFING-READY</span></h2>
-              <p>Start with a question. End with a view you can defend line by line.</p>
+              <h2 id="workflow-title" class="display-heading">FROM ACTIVITY<br><span>TO ACTIONABLE BRIEFINGS</span></h2>
+              <p>Spend less time moving between sources. Build a defensible picture, open available reports and capture
+                the evidence worth sharing.</p>
             </div>
             <ol class="workflow-steps">
               <li>
@@ -286,9 +389,7 @@
               <h2 id="evidence-title" class="display-heading">EVERY MARKER<br><span>SHOWS ITS WORK</span></h2>
               <p class="evidence-copy">An AIS ping, a navy press release and a modeled orbit are different kinds of
                 evidence. StratOps never blends them into one icon, so you start from the source, not the symbol.</p>
-              <a class="text-link" href="/intelligence/">Read the intelligence <svg aria-hidden="true">
-                  <use href="#icon-arrow" />
-                </svg></a>
+              <a class="text-link" href="/intelligence/">Read the intelligence</a>
             </div>
             <div class="evidence-panels" data-reveal>
               <article class="ev-observed"><span class="evidence-kind"><i></i>Observed</span>
@@ -374,7 +475,7 @@
 
         <section class="section audience-section shell" aria-labelledby="audience-title">
           <div class="section-heading-row" data-reveal>
-            <h2 id="audience-title" class="display-heading">BUILT FOR PEOPLE<br><span>WHO CHECK THEIR WORK</span></h2>
+            <h2 id="audience-title" class="display-heading">BUILT FOR</h2>
           </div>
           <ul class="audience-grid">
             <li data-reveal>
@@ -404,6 +505,50 @@
           </ul>
         </section>
 
+        <section class="section shell demo-section" id="request-demo" aria-labelledby="demo-title">
+          <div class="demo-panel">
+            <figure class="demo-visual">
+              <div class="img-slot real-shot"><img src="/assets/images/web/stratops-aircraft-telemetry.webp"
+                  width="1600" height="900" loading="lazy" decoding="async"
+                  alt="StratOps tracking a military aircraft in three dimensions with telemetry and source context"><span
+                  class="shot-caption">STRATOPS / ACTUAL APPLICATION</span></div>
+            </figure>
+            <div class="demo-copy">
+              <p class="sec-tag">FOR DEFENSE · AEROSPACE · MEDIA · INVESTORS</p>
+              <h2 class="display-heading" id="demo-title">SEE THE PLATFORM.<br><span>DISCUSS THE USE CASE.</span></h2>
+              <p>Explore specialized military 3D visualization, source-aware tracking and automated reporting through a
+                focused product demonstration.</p>
+              <div class="demo-actions"><a class="btn btn-primary"
+                  href="/contact/?intent=demo#contact-form-section"><span>Request a product demo</span></a><a
+                  class="btn btn-ghost" href="/partners/"><span>Business opportunities</span></a></div>
+              <p class="fineprint">Images show the StratOps application. Asset models are visual representations;
+                observations, reports and orbital predictions are distinct. Coverage and availability depend on each
+                source and integration.</p>
+            </div>
+          </div>
+        </section>
+        <section class="section home-partner" id="collaborate" aria-labelledby="collaborate-title">
+          <div class="shell partner-home-inner clippath-1" data-reveal>
+            <div>
+              <p class="sec-tag">GEOSPATIAL · AEROSPACE · OPEN DATA</p>
+              <h2 id="collaborate-title" class="display-heading">BUILT INDEPENDENTLY.<br><span>OPEN TO
+                  COLLABORATION.</span></h2>
+              <p class="feature-lead">StratOps brings 3D geospatial visualization, public-source intelligence and
+                modeled
+                military assets together. We welcome discussions with data providers, geospatial technology teams,
+                researchers and commercial partners.</p>
+              <div class="ecosystem-names" aria-label="Technology references">
+                <span class="clippath-3">3D GEOSPATIAL</span>
+                <span class="clippath-3">PUBLIC TELEMETRY</span>
+                <span class="clippath-3">SATELLITE CONTEXT</span>
+              </div>
+              <p class="fineprint">Technology references are acknowledgments, not sponsorships or endorsements.</p>
+              <a class="btn btn-primary" href="/partners/"><span>Partner with StratOps</span></a>
+            </div>
+            <div class="partner-watermark" aria-hidden="true"><span class="font-icon stratops-ico-global-2"
+                aria-hidden="true"></span></div>
+          </div>
+        </section>
         <section class="finale" id="access" aria-labelledby="finale-title">
           <div class="shell finale-inner" data-reveal>
             <h2 id="finale-title">START WITH ONE SIGNAL<br><em>SEE THE WHOLE THEATER</em></h2>
@@ -413,7 +558,6 @@
                 aria-hidden="true">
                 <use href="#icon-arrow" />
               </svg></a>
-            <small>Guest and sign-in options are offered at entry. Feature access varies.</small>
           </div>
         </section>
       </main>

@@ -79,6 +79,7 @@ import {
 } from "./warzone-air-ingestion.js";
 import {
     applyStratOpsFeatureVisibility,
+    isStratOpsPublicAccessEnabled,
     isStratOpsFeatureEnabled,
     isLocalDeveloperFeatureEnabled,
 } from "./stratops-feature-config.js";
@@ -196,7 +197,6 @@ function measureStartupPerformance(name, startMark, endMark) {
     } catch { }
 }
 let __eventPopupDevInspectionFrozen = false;
-let __foregroundRenderModeRestoreTimer = 0;
 let __widgetLayerControlsBound = false;
 let __aircraftLayerChangeReady = false;
 let __aircraftWidgetBound = false;
@@ -818,18 +818,9 @@ function forceForegroundViewerWake({ reason = "foreground", backgroundIdleMs = 0
     const longIdle = idleMs >= 5 * 60 * 1000;
     window.__warzoneLifecycle?.requestRenderBurst?.(reason, longIdle ? 2600 : 900);
     startForegroundRenderWakeBurst(longIdle ? 2200 : 900);
-    if (!longIdle) return;
-    clearTimeout(__foregroundRenderModeRestoreTimer);
-    const previousRequestRenderMode = scene.requestRenderMode;
-    try {
-        scene.requestRenderMode = false;
-    } catch { }
-    __foregroundRenderModeRestoreTimer = window.setTimeout(() => {
-        try {
-            scene.requestRenderMode = previousRequestRenderMode !== false;
-            scene.requestRender?.();
-        } catch { }
-    }, 2400);
+    // The bounded bursts already request frames. A temporary mode override can
+    // survive tab freezing, then be saved as the original mode on the next wake.
+    // Leave the viewer's render policy unchanged across every resume.
 }
 function pauseWarzoneLifecycle(reason = "pause") {
     if (__warzoneLifecyclePaused) return false;
@@ -3554,6 +3545,12 @@ async function refreshPrivateNavalHistory({ append = false } = {}) {
     const needsHistory = ["historical", "archived", "all"].includes(status);
     if (!isNavalTrackingFeatureEnabled() || !isLayerEnabled("naval") || !needsHistory) {
         cancelNavalHistoryRequest({ clear: true });
+        requestNavalWidgetRender(0);
+        return;
+    }
+    if (isStratOpsPublicAccessEnabled() && !window.__stratopsAuthState?.isAuthenticated) {
+        cancelNavalHistoryRequest({ clear: true });
+        __navalHistoryMessage = "Private naval archives are unavailable in public mode. Live contacts remain available.";
         requestNavalWidgetRender(0);
         return;
     }
@@ -11220,6 +11217,7 @@ function setAuthMode(isAuthenticated, user = null) {
 }
 
 export function showLoginModal(mode = "guest", user = null) {
+    if (isStratOpsPublicAccessEnabled()) return;
     const { modal, email, consent, loginBtn } = getAuthModalElements();
     const isAuthenticated = mode === "authenticated";
     setAuthError("");
@@ -11511,7 +11509,7 @@ export function initStratopsIntro(options = {}) {
         return;
     }
 
-    const authBypassState = getAuthBypassState();
+    const authBypassState = isStratOpsPublicAccessEnabled() ? null : getAuthBypassState();
     if (authBypassState) {
         applyResolvedAuthState(true, authBypassState.user, authBypassState.base);
         requestAnimationFrame(() => {
@@ -11640,6 +11638,7 @@ export function initStratopsIntro(options = {}) {
 
     // ── Switch to login view ─────────────────────────────────────────────────
     function showLoginView() {
+        if (isStratOpsPublicAccessEnabled()) return;
         if (isLoginMode) return;
         const previousView = getActiveIntroView();
         isLoginMode = true;
@@ -11913,6 +11912,7 @@ export function initStratopsAuth() {
 }
 
 export async function stratopsCheckAuth() {
+    if (isStratOpsPublicAccessEnabled()) return !!window.__stratopsAuthState?.isAuthenticated;
     const bypassState = getAuthBypassState();
     if (bypassState) {
         return applyResolvedAuthState(true, bypassState.user, bypassState.base);
@@ -12836,6 +12836,7 @@ function initOperationalReportsModal() {
 }
 
 function scheduleDelayedLoginPopup() {
+    if (isStratOpsPublicAccessEnabled()) return;
     setTimeout(async () => {
         if (window.__stratopsAuthState?.isAuthenticated) return;
         try { if (sessionStorage.getItem("wz_login_dismissed") === "1") return; } catch { }

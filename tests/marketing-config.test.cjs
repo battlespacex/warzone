@@ -29,7 +29,7 @@ test('production output remains separate from operational application',()=>{
  assert.equal(config.entry,path.join(project,'dev/marketing/assets/js/site.js'));
  const plugins=config.plugins.map(p=>p.options);
  const pages=plugins.filter(p=>p && p.filename && p.template);
- assert.deepEqual(Array.from(pages.map(p=>p.filename)),['index.html','capabilities/index.html','intelligence/index.html','about/index.html','contact/index.html','404.html']);
+ assert.deepEqual(Array.from(pages.map(p=>p.filename)),['pages/index.html','pages/advantage.html','pages/capabilities.html','pages/intelligence.html','pages/about.html','pages/partners.html','pages/contact.html','pages/404.html']);
  const copies=plugins.find(p=>p && p.patterns)?.patterns || [];
  assert.ok(copies.some(p=>p.from==='dev/assets/fonts/stratops' && p.to==='assets/fonts/stratops'));
  assert.ok(copies.some(p=>p.from==='dev/marketing/seo/sitemap.xml'));
@@ -37,7 +37,7 @@ test('production output remains separate from operational application',()=>{
 test('partials resolve the original portal URL and current nav state',()=>{
  const cfg=make({}, {mode:'production'});
  const plugins=cfg.plugins.map(p=>p.options);
- const contact=plugins.find(p=>p && p.filename==='contact/index.html');
+ const contact=plugins.find(p=>p && p.filename==='pages/contact.html');
  const params=contact.templateParameters();
  const header=params.partials('header');
  const footer=params.partials('footer');
@@ -45,14 +45,35 @@ test('partials resolve the original portal URL and current nav state',()=>{
  assert.match(header,/href="\/contact\/" aria-current="page"/);
  assert.match(footer,/href="\/capabilities\/\#sea"/);
  assert.ok(!header.includes('{{NAV_'));
- const home=plugins.find(p=>p && p.filename==='index.html').templateParameters();
+ const home=plugins.find(p=>p && p.filename==='pages/index.html').templateParameters();
  assert.match(home.partials('footer'),/href="\#domains"/);
 });
 test('marketing dev-server retains 4174 and clean URL rewrites',()=>{
  const cfg=make({}, {mode:'development'});
  assert.equal(cfg.devServer.port,4174);
- for(const item of ['capabilities','intelligence','about','contact']){
+ for(const item of ['advantage','capabilities','intelligence','about','partners','contact']){
   const match=cfg.devServer.historyApiFallback.rewrites.find(r=>r.from.test('/'+item+'/'));
-  assert.equal(match.to,'/'+item+'/index.html');
+  assert.equal(match.to,'/pages/'+item+'.html');
+ }
+});
+
+test('contact page hides direct mailbox and local preview cannot send',()=>{
+ const page=fs.readFileSync(path.join(project,'dev/marketing/pages/contact.html'),'utf8');
+ const footer=fs.readFileSync(path.join(project,'dev/marketing/partials/footer.html'),'utf8');
+ const client=fs.readFileSync(path.join(project,'dev/marketing/assets/js/contact.js'),'utf8');
+ assert.ok(!page.includes('ALTERNATIVE CONTACT'));
+ for(const code of [page,footer,client]) assert.ok(!code.includes('bravo@battlespacex.com'));
+ assert.match(client,/Local preview only/);
+ assert.match(client,/submit\.disabled = true/);
+ assert.match(client,/requestJson\('\/challenge'\)/);
+});
+
+test('new partnership routes are generated and have nav state',()=>{
+ const cfg=make({}, {mode:'production'});
+ const plugins=cfg.plugins.map(p=>p.options);
+ for(const name of ['advantage','partners']){
+   const page=plugins.find(p=>p && p.filename===`pages/${name}.html`);
+   assert.ok(page,`Missing ${name} template`);
+   assert.match(page.templateParameters().partials('header'),new RegExp(`href="/${name}/" aria-current="page"`));
  }
 });

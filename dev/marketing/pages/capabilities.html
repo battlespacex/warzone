@@ -7,22 +7,23 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#080b0e">
   <meta name="robots" content="index,follow,max-image-preview:large">
-  <title>StratOps Capabilities | Air, Naval, Orbital and Geospatial OSINT</title>
+  <title>StratOps Capabilities | 3D Military Tracking, Reports &amp; OSINT</title>
   <meta name="description"
-    content="Explore military air and naval observations, public orbital tracks, NOTAMs, GNSS interference and conflict reporting in the StratOps 3D workspace.">
+    content="Explore StratOps 3D aircraft and naval visualization, conflict intelligence, AOI scanning, NOTAM Take Shot captures and automated operational reports.">
   <link rel="canonical" href="<%= domains.publicOrigin %>/capabilities/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="StratOps by BattlespaceX">
-  <meta property="og:title" content="StratOps Capabilities | Air, Naval, Orbital and Geospatial OSINT">
+  <meta property="og:title" content="StratOps Capabilities | 3D Military Tracking, Reports &amp; OSINT">
   <meta property="og:description"
-    content="Explore military air and naval observations, public orbital tracks, NOTAMs, GNSS interference and conflict reporting in the StratOps 3D workspace.">
+    content="Explore StratOps 3D aircraft and naval visualization, conflict intelligence, AOI scanning, NOTAM Take Shot captures and automated operational reports.">
   <meta property="og:url" content="<%= domains.publicOrigin %>/capabilities/">
   <meta property="og:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="StratOps Capabilities | Air, Naval, Orbital and Geospatial OSINT">
+  <meta name="twitter:title" content="StratOps Capabilities | 3D Military Tracking, Reports &amp; OSINT">
   <meta name="twitter:description"
-    content="Explore military air and naval observations, public orbital tracks, NOTAMs, GNSS interference and conflict reporting in the StratOps 3D workspace.">
+    content="Explore StratOps 3D aircraft and naval visualization, conflict intelligence, AOI scanning, NOTAM Take Shot captures and automated operational reports.">
   <meta name="twitter:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"StratOps Capabilities","url":"https://stratops.space/capabilities/","isPartOf":{"@type":"WebSite","name":"StratOps","url":"https://stratops.space/"},"publisher":{"@type":"Organization","name":"BattlespaceX","url":"https://battlespacex.com/"}}</script>
 </head>
 
 <body class="stratops-public stratops-subpage page-capabilities">
@@ -33,17 +34,14 @@
       <main id="main" tabindex="-1">
         <section class="page-banner banner--full" aria-labelledby="page-title">
           <div class="banner-media">
-            <div class="img-slot is-placeholder " data-slot="CAP-BANNER" role="img"
-              aria-label="Image placeholder CAP-BANNER"><span class="slot-label"><b>IMAGE SLOT CAP-BANNER</b><i>banner,
-                  cover · 2400×1200+</i><em>Wide hero image: a technical HUD or typography visual (GNSS, orbits, radar).
-                  Keep the focal point on the right half.</em></span></div>
+            <div class="img-slot real-shot" data-slot="CAP-BANNER"><img src="/assets/images/web/stratops-aircraft-global.webp" alt="StratOps operational globe with military activity panels" loading="eager" fetchpriority="high" decoding="async" width="1600" height="900"></div>
           </div>
           <div class="banner-shade" aria-hidden="true"></div>
           <div class="shell banner-inner">
             <div class="banner-tag"><span>FILE / CAPABILITIES</span><span>PUBLIC-SOURCE · 3D WORKSPACE</span></div>
             <div class="banner-copy" data-reveal>
               <p class="eyebrow">THE FIELD GUIDE</p>
-              <h1 id="page-title" class="display-heading">WHAT YOU CAN<br><span>DO ON THE GLOBE</span></h1>
+              <h1 id="page-title" class="display-heading">INTELLIGENCE<br><span>YOU CAN USE</span></h1>
               <p class="banner-lead">Every layer in StratOps answers a specific question. This guide shows what each one
                 does, how to use it, and what it cannot tell you.</p>
             </div>
@@ -63,10 +61,7 @@
           <article class="chapter" id="air">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-AIR" role="img"
-                  aria-label="Image placeholder CAP-AIR"><span class="slot-label"><b>IMAGE SLOT CAP-AIR</b><i>4:3 ·
-                      1400×1050</i><em>Air tracker with one focused track and its telemetry panel open.</em></span>
-                </div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-AIR"><img src="/assets/images/web/stratops-aircraft-telemetry.webp" alt="A focused military KC-135R 3D aircraft with telemetry panel in StratOps" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">AIR / FOCUSED TRACK</span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Military aviation in StratOps.</span></figcaption>
               </figure>
             </div>
@@ -77,26 +72,22 @@
               <p class="chapter-lead">Aircraft observations come from several public ADS-B and aggregator networks.
                 StratOps sets each one against identity references and a military taxonomy, so a contact arrives with
                 its evidence attached, not just an icon.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Search and filter contacts, then focus a single track in 3D.</li>
                 <li>Read altitude, speed and heading next to the source and the age of the last observation.</li>
                 <li>Check identity confidence and any registration, operator or type fields. Ambiguous results stay
                   ambiguous.</li>
                 <li>Open eligible history, replay a track, and return to the current picture.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>No signal does not mean no aircraft. A gap in ADS-B coverage, or a
                 military model on screen, says nothing about activity.</p>
-              <div class="data-strip" aria-label="Source families"><span>ADS-B aggregators</span><span>Plane Alert
-                  reference list</span><span>Military taxonomy</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Aircraft observations</span><span>Identity evidence</span><span>Classification confidence</span></div>
             </div>
           </article>
           <article class="chapter" id="sea">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-SEA" role="img"
-                  aria-label="Image placeholder CAP-SEA"><span class="slot-label"><b>IMAGE SLOT CAP-SEA</b><i>4:3 ·
-                      1400×1050</i><em>Naval tracker beside the naval activity widget, showing AIS contacts and a
-                      published exercise area.</em></span></div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-SEA"><img src="/assets/images/web/stratops-naval-vessel.webp" alt="StratOps naval tracker with a generic 3D vessel visualization and source-status panel" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">SEA / SOURCE-AWARE VIEW</span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Naval activity in StratOps.</span></figcaption>
               </figure>
             </div>
@@ -107,26 +98,22 @@
               <p class="chapter-lead">The naval picture has two kinds of information that are easy to confuse. AIS
                 contacts are positions that vessels broadcast. Publications are statements about exercises, deployments
                 and port visits. StratOps keeps them in separate lanes.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Filter and select AIS contacts, then inspect details, contact age and eligible history.</li>
                 <li>Open the naval activity widget to browse publications by type, geography and date, with source links
                   and expiry.</li>
                 <li>See a published point, port or area only where the source actually supplied one.</li>
                 <li>Review identity confidence and conflicts before a contact earns a specialized ship silhouette.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>A publication’s port or region is not a ship’s position, and an AIS
                 ship-type code does not confirm a warship.</p>
-              <div class="data-strip" aria-label="Source families"><span>AIS networks</span><span>Navy and ministry
-                  publications</span><span>DVIDS</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Vessel observations</span><span>Published activity</span><span>Identity context</span></div>
             </div>
           </article>
           <article class="chapter" id="orbit">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-ORBIT" role="img"
-                  aria-label="Image placeholder CAP-ORBIT"><span class="slot-label"><b>IMAGE SLOT CAP-ORBIT</b><i>4:3 ·
-                      1400×1050</i><em>A satellite in focus on the globe with its predicted ground track and
-                      footprint.</em></span></div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-ORBIT"><img src="/assets/images/web/stratops-orbital-tracking.webp" alt="StratOps 3D satellite models with predicted orbital arcs and contextual metadata" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">SPACE / PROPAGATED ORBIT</span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Orbital intelligence in StratOps.</span></figcaption>
               </figure>
             </div>
@@ -137,22 +124,21 @@
               <p class="chapter-lead">Public orbital catalogs become moving objects. StratOps propagates published
                 elements to show where military-associated and dual-use satellites are predicted to be, and keeps the
                 age of that data in view.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Search the catalog and select a satellite by its NORAD identity.</li>
                 <li>Focus, follow and release a satellite, with orbital details and footprint where shown.</li>
                 <li>Trace predicted ground tracks computed from the published elements.</li>
                 <li>Keep imagery apart: observations have their own capture dates and sources.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>A position here is a prediction. A footprint is geometry, not
                 measured sensor range, and a 3D model is a visual aid, not evidence of payload or mission.</p>
-              <div class="data-strip" aria-label="Source families"><span>CelesTrak GP data</span><span>SATCAT
-                  records</span><span>Curated strategic catalog</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Orbital predictions</span><span>Ground tracks</span><span>Catalog metadata</span></div>
             </div>
           </article>
           <article class="chapter" id="notam">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-NOTAM" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-NOTAM" role="img"
                   aria-label="Image placeholder CAP-NOTAM"><span class="slot-label"><b>IMAGE SLOT CAP-NOTAM</b><i>4:3 ·
                       1400×1050</i><em>A restriction polygon on the globe with its notice text and validity
                       window.</em></span></div>
@@ -166,25 +152,22 @@
               <p class="chapter-lead">Notices are written for pilots, not for maps. StratOps keeps the original text and
                 source, then draws the geography the notice actually supplies, so you can see where a restriction sits
                 and when it applies.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Search and filter notices, then select one to focus its geometry.</li>
                 <li>Read the published text, source, status and effective period side by side.</li>
                 <li>Follow replacement and cancellation links between records.</li>
-                <li>Open Airspace Status for FAA airport delays and restrictions with their source evidence, and switch
+                <li>Open Airspace Status for available airport delays and restrictions with their published details, and switch
                   on maritime warning areas where enabled.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>Q-line locations and radii can be approximate, and a notice in one
                 place is not a nationwide closure. For flight decisions, use the official authority.</p>
-              <div class="data-strip" aria-label="Source families"><span>Notice providers</span><span>FAA NAS
-                  Status</span><span>Approved maritime warnings</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Published notices</span><span>Validity windows</span><span>Airspace status</span></div>
             </div>
           </article>
           <article class="chapter" id="gnss">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-GNSS" role="img"
-                  aria-label="Image placeholder CAP-GNSS"><span class="slot-label"><b>IMAGE SLOT CAP-GNSS</b><i>4:3 ·
-                      1400×1050</i><em>The GNSS severity raster over a region, with one cell selected.</em></span></div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-GNSS"><img src="/assets/images/web/stratops-gnss-world.webp" alt="GNSS interference estimate hexagon grid over the globe in StratOps" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">SIGNALS / GNSS CONTEXT</span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>GNSS interference in StratOps.</span></figcaption>
               </figure>
             </div>
@@ -194,22 +177,21 @@
               <p class="chapter-tag">See where navigation degrades.</p>
               <p class="chapter-lead">StratOps maps summaries of navigation-signal degradation as severity-colored
                 cells. Regional patterns show up at a glance, and so do the limits of the data behind them.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Switch the layer on and choose a supported observation period.</li>
                 <li>Filter by geography and severity.</li>
                 <li>Hover or select a cell to read the data behind it, including source health and coverage.</li>
                 <li>Read the layer beside air tracks and notices for regional context.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>Degradation is not a located jammer and does not confirm spoofing.
                 Rolling 24, 48 and 72-hour views can have partial coverage, and the layer reports it when they do.</p>
-              <div class="data-strip" aria-label="Source families"><span>GPSInterference.com</span><span>ADS-B accuracy
-                  history</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Signal degradation</span><span>Regional coverage</span><span>Observation periods</span></div>
             </div>
           </article>
           <article class="chapter" id="conflict">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-CONFLICT" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-CONFLICT" role="img"
                   aria-label="Image placeholder CAP-CONFLICT"><span class="slot-label"><b>IMAGE SLOT
                       CAP-CONFLICT</b><i>4:3 · 1400×1050</i><em>Conflict event markers on the globe with one event card
                       open, source and date visible.</em></span></div>
@@ -223,22 +205,21 @@
               <p class="chapter-lead">Reported events become a sourced, filterable layer. Strikes, drones and missile
                 activity are placed by what the report says, with location precision shown, so each incident reads in
                 the context of its region.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Toggle event categories and select a marker for its source, date, severity and available media.</li>
                 <li>Browse the Intel Wire and open article details with source links.</li>
                 <li>Check regional hotspots and event counts.</li>
                 <li>Review alert timing and areas where a supported alert feed is configured.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>A marker is a report, not telemetry. Syndicated repeats are not
                 independent confirmation, and an animation is not radar detection.</p>
-              <div class="data-strip" aria-label="Source families"><span>News and official reports</span><span>Curated
-                  conflict registry</span><span>Approved alert feeds</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Event reports</span><span>Regional context</span><span>Alert status</span></div>
             </div>
           </article>
           <article class="chapter" id="aoi">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-AOI" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-AOI" role="img"
                   aria-label="Image placeholder CAP-AOI"><span class="slot-label"><b>IMAGE SLOT CAP-AOI</b><i>4:3 ·
                       1400×1050</i><em>A drawn polygon over a coastline with the area summary panel beside
                       it.</em></span></div>
@@ -252,23 +233,22 @@
               <p class="chapter-lead">Sometimes the subject is a place, not a platform. Draw an area and StratOps
                 summarizes what is loaded in and around it, alongside reference context for strategic sites and
                 environmental events.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Activate the tool, draw a polygon and adjust its vertices.</li>
                 <li>Scan for the aircraft, vessels, events and bases currently available in that area.</li>
                 <li>Read the summary, then reshape the area as the question changes.</li>
                 <li>Add reference layers: military bases, thermal and fire activity, seismic events.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>Results reflect loaded data, filters and location precision, and an
                 empty scan is not proof of absence. A base marker or range ring is reference context, not current force
                 presence.</p>
-              <div class="data-strip" aria-label="Source families"><span>Loaded layers</span><span>Base reference
-                  dataset</span><span>NASA FIRMS and EONET</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Area summaries</span><span>Reference context</span><span>Geographic overlays</span></div>
             </div>
           </article>
           <article class="chapter" id="imagery">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-IMAGERY" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-IMAGERY" role="img"
                   aria-label="Image placeholder CAP-IMAGERY"><span class="slot-label"><b>IMAGE SLOT
                       CAP-IMAGERY</b><i>4:3 · 1400×1050</i><em>An event marker with its linked satellite image reference
                       and acquisition metadata.</em></span></div>
@@ -281,21 +261,20 @@
               <p class="chapter-tag">Know when the image was taken.</p>
               <p class="chapter-lead">Imagery is evidence of a place at a time. StratOps links eligible image references
                 to events and shows when each was acquired and where it came from.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Open eligible event media and source previews.</li>
                 <li>Read acquisition date, source and available metadata.</li>
                 <li>Keep image time separate from a satellite’s orbital position.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>Availability depends on configuration and access. An image
                 reference is context, not automatic confirmation of an attack or of a military object.</p>
-              <div class="data-strip" aria-label="Source families"><span>Sentinel catalogs, when
-                  configured</span><span>Event media sources</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Image acquisition dates</span><span>Event-linked imagery</span></div>
             </div>
           </article>
           <article class="chapter" id="cyber">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-CYBER" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-CYBER" role="img"
                   aria-label="Image placeholder CAP-CYBER"><span class="slot-label"><b>IMAGE SLOT CAP-CYBER</b><i>4:3 ·
                       1400×1050</i><em>The cyber status feed beside a regional view with a disruption observation
                       selected.</em></span></div>
@@ -309,16 +288,15 @@
               <p class="chapter-lead">Cyber and infrastructure reporting joins the picture as sourced context:
                 advisories, published threat intelligence and network-disruption observations, filed by category, time
                 and supported location.</p>
-              <ul>
+              <details class="chapter-details"><summary>Explore detailed capabilities</summary><div class="chapter-details-body"><ul>
                 <li>Open the cyber status feed and browse reports by category, source and date.</li>
                 <li>Read geographic attribution and the evidence offered with each item.</li>
                 <li>Place internet-disruption observations next to regional events.</li>
-              </ul>
+              </ul></div></details>
               <p class="caution"><b>Read it right</b>A vulnerability listing or threat report is not an attack, and a
                 traffic dip does not prove a countrywide incident. Some traffic metrics reflect billing country, not the
                 target.</p>
-              <div class="data-strip" aria-label="Source families"><span>Network measurement</span><span>Vulnerability
-                  catalogs</span><span>Security reporting</span></div>
+              <div class="data-strip" aria-label="Information types"><span>Infrastructure reports</span><span>Network observations</span><span>Category metadata</span></div>
             </div>
           </article>
         </section>
@@ -357,10 +335,7 @@
             </div>
             <div class="wide-fig" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-21x9 " data-slot="CAP-LAYERS" role="img"
-                  aria-label="Image placeholder CAP-LAYERS"><span class="slot-label"><b>IMAGE SLOT CAP-LAYERS</b><i>21:9
-                      · 2100×900</i><em>Wide multi-layer view: tracks, a notice polygon, a GNSS raster and event markers
-                      on one theater.</em></span></div>
+                <div class="img-slot r-21x9 real-shot" data-slot="CAP-LAYERS"><img src="/assets/images/web/stratops-gnss-satellite.webp" alt="StratOps multi-layer globe showing GNSS raster and orbital panels" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">MULTI-DOMAIN / OPERATIONAL VIEW</span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Several layers on one theater, each with its own
                     source.</span></figcaption>
               </figure>
@@ -372,32 +347,30 @@
             <p class="sec-tag">CAPTURE &amp; SHARE</p>
           </div>
           <div class="section-heading-row" data-reveal>
-            <h2 class="display-heading">BRIEF IT<br><span>SHARE IT</span></h2>
-            <p class="section-aside">Two tools turn a view into something you can hand to someone else.</p>
+            <h2 class="display-heading">TURN INTELLIGENCE<br><span>INTO BRIEFINGS</span></h2>
+            <p class="section-aside">Save the operational picture, capture a NOTAM area and access published intelligence reports without building every briefing from scratch.</p>
           </div>
           <div class="duo">
             <div data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-SHOT" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-SHOT" role="img"
                   aria-label="Image placeholder CAP-SHOT"><span class="slot-label"><b>IMAGE SLOT CAP-SHOT</b><i>4:3 ·
                       1400×1050</i><em>Take Shot framing overlay on the globe (16:9 crop box visible).</em></span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Take Shot framing a view.</span></figcaption>
               </figure>
-              <h3 class="duo-title">Take Shot</h3>
-              <p>Frame the globe in 1:1, 16:9, 9:16 or a custom size and save the view as an image. The crop is never
-                stretched, and exports reflect the tiles and geometry actually loaded.</p>
+              <h3 class="duo-title">Take Shot: NOTAM areas &amp; battlespace snapshots</h3>
+              <p>Capture a marked NOTAM area or a wider operational battlespace view for rapid sharing. Frame the globe in 1:1, 16:9, 9:16 or a custom size, then save the visible map as an image. Exports reflect the tiles and geometry actually loaded.</p>
               <div class="data-strip"><span>1:1</span><span>16:9</span><span>9:16</span><span>Custom</span></div>
             </div>
             <div data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3 " data-slot="CAP-REPORT" role="img"
+                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-REPORT" role="img"
                   aria-label="Image placeholder CAP-REPORT"><span class="slot-label"><b>IMAGE SLOT CAP-REPORT</b><i>4:3
                       · 1400×1050</i><em>The built-in PDF report viewer with a published report open.</em></span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>The PDF report viewer.</span></figcaption>
               </figure>
-              <h3 class="duo-title">Operational reports</h3>
-              <p>Browse report history, open a published report in the built-in PDF viewer and download it where
-                permitted. Viewing a report shows what was published, not that a new one was generated for you.</p>
+              <h3 class="duo-title">Automated 48-hour intelligence briefings</h3>
+              <p>Review available automatically generated 48-hour situation reports, explore report history, open a published report in the built-in PDF viewer and download it where permitted. Report contents depend on source coverage and successful generation.</p>
               <div class="data-strip"><span>Report history</span><span>PDF viewer</span><span>Download</span></div>
             </div>
           </div>
@@ -414,6 +387,21 @@
               </svg></a>
           </div>
         </section>
+      <section class="section subpage-band" id="briefing-workflows" aria-labelledby="cap-work-title"><div class="shell split">
+ <div class="split-copy" data-reveal><p class="sec-tag">OPERATIONAL OUTPUTS / REPORT + CAPTURE</p><h2 id="cap-work-title" class="display-heading">MAKE INTELLIGENCE<br><span>BRIEFING-READY.</span></h2>
+ <p class="feature-lead">Review available 48-hour operational briefings, capture mapped NOTAM areas and export your battlespace view for faster communication.</p>
+ <div class="inline-points"><span>PDF REPORTS</span><span>NOTAM TAKE SHOT</span><span>BATTLESPACE CAPTURE</span></div>
+ <a class="text-link" href="/advantage/#reports">See the reporting workflow</a></div>
+ <figure class="fig" data-reveal><div class="img-slot is-placeholder" data-slot="CAP-REPORT-CAPTURE" role="img" aria-label="Suggested image: Side-by-side composition of a StratOps PDF report and a captured NOTAM area.">
+      <span class="slot-label"><b>IMAGE / CAP-REPORT-CAPTURE</b><i>1600×900 · 16:9</i><em>Side-by-side composition of a StratOps PDF report and a captured NOTAM area.</em></span></div><figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> STRATOPS / VISUAL REFERENCE <span>CAP-REPORT-CAPTURE</span></figcaption></figure>
+ </div></section><section class="section shell assets-block" id="3d-operations" aria-labelledby="cap-model-title">
+ <div class="feature-heading" data-reveal><div><p class="sec-tag">SPECIALIZED MILITARY MODEL LIBRARY</p><h2 id="cap-model-title" class="display-heading">PURPOSE-BUILT 3D.<br><span>OPERATIONAL CONTEXT.</span></h2></div><p class="feature-lead">Detailed military aircraft, naval vessels and orbital assets are rendered as supported 3D models rather than only flat symbols.</p></div>
+ <div class="media-grid">
+ <figure class="fig" data-reveal><div class="img-slot r-4x3 real-shot" data-slot="CAP-3D-AIR"><img src="/assets/images/web/stratops-military-aircraft.webp" alt="Actual modeled military aircraft in the StratOps battlespace" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">3D / MILITARY AVIATION</span></div><figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> MILITARY AVIATION / 3D MODEL <span>ACTUAL VIEW</span></figcaption></figure>
+ <figure class="fig" data-reveal><div class="img-slot r-4x3 real-shot" data-slot="CAP-3D-NAVAL"><img src="/assets/images/web/stratops-naval-vessel.webp" alt="Generic modeled naval contact in StratOps, identity unverified" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">3D / NAVAL CONTEXT</span></div><figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> NAVAL CONTACT / SOURCE AWARE <span>ACTUAL VIEW</span></figcaption></figure>
+ <figure class="fig" data-reveal><div class="img-slot r-4x3 real-shot" data-slot="CAP-3D-SAT"><img src="/assets/images/web/stratops-orbital-wide.webp" alt="Modeled satellites with their predicted orbital trajectory in StratOps" loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">3D / ORBITAL ASSETS</span></div><figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> SATELLITE / PREDICTED ORBIT <span>ACTUAL VIEW</span></figcaption></figure>
+ </div><p class="fineprint">Models support visualization. Real-world identity, geometry and position depend on source quality and observed or predicted data.</p>
+ </section>
       </main>
       <%= partials("footer") %>
 </body>

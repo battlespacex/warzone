@@ -44,7 +44,7 @@ const document = {
   removeEventListener: (type, listener) => { if (keyboard.get(type) === listener) keyboard.delete(type); },
 };
 const layers = vm.createContext({ window, document, localStorage: { setItem() {}, getItem: () => null },
-  getStratOpsLayerFeaturePath: () => "", isStratOpsFeatureEnabled: () => true });
+  getStratOpsLayerFeaturePath: () => "", isStratOpsFeatureEnabled: path => path !== "access.public" });
 const source = readFileSync(new URL("../../../dev/assets/js/warzone-layers.js", import.meta.url), "utf8");
 vm.runInContext(source.replace(/^import[\s\S]*?from "[^"]+";\r?\n/m, "")
   .replace(/import\.meta\.env\?\.DEV/g, "false").replace(/export \{[^}]+\};/g, "").replace(/\bexport /g, ""), layers);

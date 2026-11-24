@@ -5,6 +5,21 @@
   const form = document.getElementById('stratops-contact-form');
   if (!form) return;
   const base = String(STRATOPS_CONTACT_API_BASE || '').trim().replace(/\/+$/, '');
+  // Optional sales/demo routes keep the exact server-approved topic values.
+  const intent = new URLSearchParams(window.location.search).get('intent');
+  const intentChoices = {
+    demo: ['General enquiry', 'Product demonstration: tell us about your team and use case.'],
+    commercial: ['General enquiry', 'Commercial evaluation, enterprise licensing or investment: describe your organization and goals.'],
+    data: ['Data partnership', 'Data or technology partnership: share the integration or licensing opportunity.'],
+    media: ['Media request', 'Press or research request: share your publication, project or intended use.']
+  };
+  if (intent && Object.prototype.hasOwnProperty.call(intentChoices, intent)) {
+    const [topic, hint] = intentChoices[intent];
+    const select = form.elements.namedItem('topic');
+    if (select) select.value = topic;
+    const message = document.getElementById('contact-intent-message');
+    if (message) { message.hidden = false; message.textContent = hint; }
+  }
   const statusEl = document.getElementById('contact-status');
   const question = document.getElementById('contact-captcha-question');
   const answer = document.getElementById('contact-captcha-answer');

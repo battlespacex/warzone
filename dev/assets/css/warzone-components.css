@@ -6469,6 +6469,23 @@ body:not(.is-billing-enabled) [data-billing-open-pricing] {
     display: none;
 }
 
+[data-public-access-only] {
+    display: none;
+}
+
+body.is-public-access [data-public-access-only] {
+    display: block;
+}
+
+body.is-public-access [data-account-access-only],
+body.is-public-access .wz-lock-overlay,
+body.is-public-access #wz-nav-login-btn,
+body.is-public-access [data-mobile-action="login"],
+body.is-public-access [data-billing-open-pricing],
+body.is-public-access #wz-intro-modal #wz-hint,
+body.is-public-access #wz-intro-login-view,
+body.is-public-access #wz-login-modal,
+body.is-public-access #wz-pricing-modal,
 body.is-authenticated .wz-lock-overlay {
     display: none !important;
 }
@@ -6477,15 +6494,15 @@ body.is-authenticated .wz-lock-overlay {
     position: relative;
 }
 
-body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content,
-body:not(.is-authenticated) [data-widget-id="naval"] .panel-content,
-body:not(.is-authenticated) [data-widget-id="orbital"] .panel-content {
+body:not(.is-authenticated):not(.is-public-access) [data-widget-id="aircraft"] .panel-content,
+body:not(.is-authenticated):not(.is-public-access) [data-widget-id="naval"] .panel-content,
+body:not(.is-authenticated):not(.is-public-access) [data-widget-id="orbital"] .panel-content {
     overflow: hidden !important;
 }
 
-body:not(.is-authenticated) [data-widget-id="aircraft"] .panel-content>*:not(.wz-lock-overlay),
-body:not(.is-authenticated) [data-widget-id="naval"] .panel-content>*:not(.wz-lock-overlay),
-body:not(.is-authenticated) [data-widget-id="orbital"] .panel-content>*:not(.wz-lock-overlay) {
+body:not(.is-authenticated):not(.is-public-access) [data-widget-id="aircraft"] .panel-content>*:not(.wz-lock-overlay),
+body:not(.is-authenticated):not(.is-public-access) [data-widget-id="naval"] .panel-content>*:not(.wz-lock-overlay),
+body:not(.is-authenticated):not(.is-public-access) [data-widget-id="orbital"] .panel-content>*:not(.wz-lock-overlay) {
     visibility: hidden !important;
     pointer-events: none !important;
     user-select: none !important;
@@ -6514,16 +6531,16 @@ body.is-billing-enabled.is-free-tier.is-authenticated [data-premium-feature] .pa
     user-select: auto !important;
 }
 
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-icon,
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-dot,
+body:not(.is-authenticated):not(.is-public-access) .wz-layer-item.is-premium .wz-layer-icon,
+body:not(.is-authenticated):not(.is-public-access) .wz-layer-item.is-premium .wz-layer-dot,
 .wz-layer-item.is-locked .wz-layer-icon,
 .wz-layer-item.is-locked .wz-layer-dot {
     color: var(--color-gray-slate) !important;
     background: transparent
 }
 
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label,
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-desc,
+body:not(.is-authenticated):not(.is-public-access) .wz-layer-item.is-premium .wz-layer-label,
+body:not(.is-authenticated):not(.is-public-access) .wz-layer-item.is-premium .wz-layer-desc,
 .wz-layer-item.is-locked .wz-layer-label,
 .wz-layer-item.is-locked .wz-layer-desc {
     color: var(--color-gray-slate)
@@ -6534,12 +6551,12 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-desc,
     opacity: 0.3;
 }*/
 
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-toggle,
+body:not(.is-authenticated):not(.is-public-access) .wz-layer-item.is-premium .wz-layer-toggle,
 .wz-layer-item.is-locked .wz-layer-toggle {
     opacity: 0.4;
 }
 
-body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after,
+body:not(.is-authenticated):not(.is-public-access) .wz-layer-item.is-premium .wz-layer-label:after,
 .wz-layer-item.is-locked .wz-layer-label:after {
     font-family: var(--font-icon);
     content: "\e908";
@@ -6547,10 +6564,10 @@ body:not(.is-authenticated) .wz-layer-item.is-premium .wz-layer-label:after,
     color: var(--color-teal-glow)
 }
 
-body:not(.is-authenticated) .wz-dock__btn[data-dock-widget="aircraft"]:not(.wz-dock--gone) .static-icon,
-body:not(.is-authenticated) .wz-dock__btn[data-dock-widget="naval"]:not(.wz-dock--gone) .static-icon,
-body:not(.is-authenticated) [data-dock-proxy="aircraft"] .static-icon,
-body:not(.is-authenticated) [data-dock-proxy="naval"] .static-icon {
+body:not(.is-authenticated):not(.is-public-access) .wz-dock__btn[data-dock-widget="aircraft"]:not(.wz-dock--gone) .static-icon,
+body:not(.is-authenticated):not(.is-public-access) .wz-dock__btn[data-dock-widget="naval"]:not(.wz-dock--gone) .static-icon,
+body:not(.is-authenticated):not(.is-public-access) [data-dock-proxy="aircraft"] .static-icon,
+body:not(.is-authenticated):not(.is-public-access) [data-dock-proxy="naval"] .static-icon {
     opacity: 0.35;
 }
 

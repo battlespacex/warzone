@@ -2,7 +2,6 @@ import '../../../assets/css/root.css';
 import '../../../assets/fonts/stratops/style.css';
 import '../css/site.css';
 // import './icon-fallback.js';
-import '../css/site-motion.css';
 import '../css/pages.css';
 import './contact.js';
 
@@ -285,6 +284,43 @@ import './contact.js';
     }
   }
 
+  // Native, keyboard-accessible chapter details with smooth expand AND collapse.
+  // Keep the <details> open while collapsing, then close it after the animation.
+  document.querySelectorAll('details.chapter-details').forEach((details) => {
+    const summary = details.querySelector('summary');
+    const content = details.querySelector('.chapter-details-body');
+    if (!summary || !content) return;
+    let animation = null;
+    let expanded = details.open;
+    summary.addEventListener('click', (event) => {
+      event.preventDefault();
+      const opening = !expanded;
+      expanded = opening;
+      if (animation) { animation.onfinish = null; animation.cancel(); animation = null; }
+      if (reducedMotion.matches || typeof content.animate !== 'function') {
+        details.open = opening;
+        content.style.height = '';
+        content.style.overflow = '';
+        return;
+      }
+      const startHeight = content.getBoundingClientRect().height;
+      if (opening) details.open = true;
+      content.style.overflow = 'hidden';
+      const targetHeight = opening ? content.scrollHeight : 0;
+      content.style.height = `${startHeight}px`;
+      animation = content.animate([
+        { height: `${startHeight}px`, opacity: opening ? 0.55 : 1 },
+        { height: `${targetHeight}px`, opacity: opening ? 1 : 0.55 }
+      ], { duration: 400, easing: 'cubic-bezier(.2,.7,.2,1)' });
+      animation.onfinish = () => {
+        details.open = expanded;
+        content.style.height = '';
+        content.style.overflow = '';
+        animation = null;
+      };
+    });
+  });
+
   // Smooth accordion: the panel height animates via CSS (grid-template-rows).
   // JS only flips state, keeps ARIA in sync and allows one open item at a time.
   const faqItems = Array.from(document.querySelectorAll(".faq-item"));
@@ -346,9 +382,24 @@ import './contact.js';
 
   function updateVideoLabel() {
     if (!video || !videoToggle) return;
-    const playing = !video.paused;
-    videoToggle.textContent = playing ? "PAUSE MOTION" : "PLAY MOTION";
-    videoToggle.setAttribute("aria-label", playing ? "Pause background video" : "Play background video");
+
+    const playing = !video.paused && !video.ended;
+    const icon = videoToggle.querySelector(".font-icon");
+    const label = videoToggle.querySelector(".video-toggle-label");
+
+    if (icon) {
+      icon.classList.toggle("stratops-ico-pause-1", playing);
+      icon.classList.toggle("stratops-ico-next-1", !playing);
+    }
+
+    if (label) {
+      label.textContent = playing ? "PAUSE MOTION" : "PLAY MOTION";
+    }
+
+    videoToggle.setAttribute(
+      "aria-label",
+      playing ? "Pause background video" : "Play background video"
+    );
   }
 
   function attemptVideoPlay() {
