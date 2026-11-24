@@ -27,7 +27,7 @@ test("recorded left, right and circular turns retain each accepted waypoint", ()
 
 test("trail cache renders observed vertices without moving older segments", () => {
   const cache = new Map();
-  const context = vm.createContext({ __liveTrackTrailPositionsCache: cache });
+  const context = vm.createContext({ __liveTrackTrailPositionsCache: cache, curveObservedAircraftTrail: positions => positions });
   vm.runInContext(section("updateTrackTrailPositionsCache", "getLiveTrackTrailSmoothingStrength"), context);
   const first = [{ position: { x: 0 }, ts: 1 }, { position: { x: 1 }, ts: 2 }];
   const initial = context.updateTrackTrailPositionsCache("a", first);

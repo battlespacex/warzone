@@ -217,7 +217,7 @@ test("aircraft prediction uses geodetic ground-track distance without committing
   assert.equal(rhumbInput.heading, Math.PI / 2);
   assert.deepEqual(JSON.parse(JSON.stringify(result)), { lon: 11, lat: 21, altitudeMeters: 1025, headingDeg: 90 });
   const animate = section(air, "animateTrackTo", "resetLiveTrackRuntimeForLifecycle");
-  assert.match(animate, /if \(trackKey && !wasPredicting\) pushTrackTrailPointFromCartesian/);
+  assert.doesNotMatch(animate, /pushTrackTrailPointFromCartesian\(trackKey, track, startCartesian/);
   assert.match(animate, /startCartesian[\s\S]*nextCartesian[\s\S]*predictionErrorMeters/);
 });
 
@@ -229,6 +229,7 @@ test("focused trail ignores unreached API history and follows only rendered posi
     { ts: 300, position: { x: 20 } },
   ];
   const entity = {
+    __liveTrackLastCommittedSourceTimestamp: 150,
     __liveTrackMotionState: { sourceTimestamp: 300, endCartesian: { x: 20 } },
     head: { x: 2.9 },
   };
@@ -236,6 +237,9 @@ test("focused trail ignores unreached API history and follows only rendered posi
     window: { __warzoneViewer: { entities: { getById: () => entity } } },
     __liveTrackRegistry: new Map([["a", track]]), __liveTrackTrails: new Map([["a", trail]]),
     trimTrailEntries: (value) => value,
+    LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS: 120000,
+    isDisconnectedTrackTrail: () => false,
+    updateTrackTrailPositionsCache: (_key, entries) => entries.map(entry => entry.position),
     getPositionCartesian: (value) => value.head,
     getCartesianDistanceMeters: (a, b) => Math.abs(Number(a?.x || 0) - Number(b?.x || 0)),
     clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
@@ -260,6 +264,7 @@ test("trail seeding excludes API coordinates the aircraft has not reached", () =
     parseTrailPointTimestamp: Number,
     seedTrackTrailFromHistory: (_key, _track, history) => { seededHistory = history; },
     buildTrackTrailCartesian: () => ({ x: 1 }),
+    getPositionCartesian: () => ({ x: 1 }),
     updateTrackTrailPositionsCache() {},
     Date,
   });

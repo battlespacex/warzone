@@ -163,8 +163,11 @@ test("unchanged trail point preserves cached curved geometry and live head path"
     const commit = vm.runInNewContext(`${fn(aircraft, "commitTrackTrailPosition")}; commitTrackTrailPosition`, {
         __liveTrackTrails: new Map([["A", entries]]), trimTrailEntries: (value) => value.slice(),
         getCartesianDistanceMeters: () => 1, isImplausibleTrackMotion: () => false,
+        isDisconnectedTrackTrail: () => false,
         getTrackTrailMinDistanceMeters: () => 6, __liveTrackReplayState: {},
         isTrackCurrentlyFocused: () => true,
+        window: { __warzoneViewer: { entities: { getById: () => ({ __liveTrackLastCommittedSourceTimestamp: entries[0].ts + 1000 }) } } },
+        LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS: 120000,
         updateTrackTrailPositionsCache: () => { throw new Error("unnecessary geometry rebuild"); },
     });
     commit("A", {}, { x: 2 });

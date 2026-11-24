@@ -1,6 +1,7 @@
 import { isExcludedTrainerAircraftText } from "../../../apps/shared/aircraft-trainer-exclusions.js";
 // File Path: /assets/js/warzone-live-airforce.js
 import * as Cesium from "cesium";
+import { curveObservedAircraftTrail } from "./warzone-aircraft-trail-geometry.js";
 import { readGlbSizing, applyGlbDistanceSizing } from "./warzone-glb-distance-sizing.js";
 import { getAircraftTelemetry, renderAircraftTelemetry } from "./warzone-aircraft-telemetry.js";
 import { recordRealtimeWork, measureRealtimeStage } from "./warzone-realtime-performance.js";
@@ -6171,33 +6172,22 @@ function showRouteOriginHover(trackKey = "", screenPosition = null) {
 }
 function getTraversedTrackTrailEntries(trackKey = "", entity = null) {
     const trailEntries = trimTrailEntries(__liveTrackTrails.get(trackKey) || [], trackKey);
-    const motion = entity?.__liveTrackMotionState;
-    const pendingTarget = motion?.endCartesian;
-    const liveHeadPosition = getPositionCartesian(entity);
-    if (!pendingTarget || !liveHeadPosition || !trailEntries.length) return trailEntries;
-
-    const headToTargetMeters = getCartesianDistanceMeters(liveHeadPosition, pendingTarget);
-    if (!Number.isFinite(headToTargetMeters) || headToTargetMeters <= 0.75) return trailEntries;
-
-    // A provider/history refresh can expose the new API fix before the rendered
-    // aircraft has completed its interpolation. Never let that pending endpoint
-    // enter the visible trail; the callback below appends only the live model head.
-    const endpointToleranceMeters = clamp(headToTargetMeters * 0.015, 2, 250);
-    const traversedEntries = trailEntries.slice();
-    while (traversedEntries.length > 0) {
-        const lastPosition = traversedEntries[traversedEntries.length - 1]?.position;
-        const targetDistanceMeters = getCartesianDistanceMeters(lastPosition, pendingTarget);
-        const headDistanceMeters = getCartesianDistanceMeters(lastPosition, liveHeadPosition);
-        if (
-            !Number.isFinite(targetDistanceMeters) ||
-            targetDistanceMeters > endpointToleranceMeters ||
-            (Number.isFinite(headDistanceMeters) && headDistanceMeters <= 0.75)
-        ) {
-            break;
-        }
-        traversedEntries.pop();
+    const committedThrough = Number(entity?.__liveTrackLastCommittedSourceTimestamp || 0);
+    if (committedThrough > 0) {
+        const reached = trailEntries.filter(entry => Number(entry.ts) <= committedThrough);
+        const last = reached[reached.length - 1];
+        const motion = entity?.__liveTrackMotionState;
+        const head = getPositionCartesian(entity);
+        const elapsedMs = Math.max(0, Number(motion?.sourceTimestamp || committedThrough) - Number(last?.ts || committedThrough));
+        const predictionMs = motion?.phase === "prediction" || motion?.phase === "prediction_hold"
+            ? Math.max(0, Math.min(performance.now(), Number(motion.prediction?.endsAt || 0)) - Number(motion.prediction?.startedAt || 0))
+            : 0;
+        if (last && (elapsedMs > LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS ||
+            isDisconnectedTrackTrail(getCartesianDistanceMeters(last.position, head), elapsedMs + predictionMs,
+                __liveTrackRegistry.get(trackKey) || {}))) return [];
+        return reached;
     }
-    return traversedEntries;
+    return [];
 }
 function getFocusedRoutePositions(trackKey = "") {
     const viewer = window.__warzoneViewer;
@@ -6205,13 +6195,9 @@ function getFocusedRoutePositions(trackKey = "") {
     if (!viewer || !entry) return [];
     const entity = viewer.entities?.getById?.(`track-${trackKey}`);
     const trailEntries = getTraversedTrackTrailEntries(trackKey, entity);
-    // Use only immutable positions already traversed by the rendered model.
-    // Re-smoothing the complete history after each API update visibly moves it.
-    const positions = trailEntries
-        .map((trailEntry) => trailEntry?.position
-            ? Cesium.Cartesian3.clone(trailEntry.position)
-            : null)
-        .filter(Boolean);
+    // Curve only reached observations. The live display head stays outside the
+    // cached curve, so interpolation/prediction never becomes recorded history.
+    const positions = updateTrackTrailPositionsCache(trackKey, trailEntries).slice();
     const liveHeadPosition = getPositionCartesian(entity);
     if (!liveHeadPosition) return positions;
     const lastPosition = positions.length ? positions[positions.length - 1] : null;
@@ -6365,6 +6351,8 @@ function getFocusedRouteGeometryInputs(trackKey = "") {
     return {
         historyLength: trail.length,
         historyLastTs: Number(trail[trail.length - 1]?.ts || 0),
+        committedThrough: Number(entity?.__liveTrackLastCommittedSourceTimestamp || 0),
+        historyLastPosition: trail[trail.length - 1]?.position,
         headPosition,
         cameraPosition,
         cameraHeading: Number(viewer?.camera?.heading || 0),
@@ -6380,6 +6368,8 @@ function canReuseFocusedRouteGeometry(cache, trackKey = "", inputs = {}) {
     if (
         cache.historyLength !== inputs.historyLength ||
         cache.historyLastTs !== inputs.historyLastTs ||
+        cache.committedThrough !== inputs.committedThrough ||
+        cache.historyLastPosition !== inputs.historyLastPosition ||
         cache.terrainActive !== inputs.terrainActive ||
         cache.fadePixels !== inputs.fadePixels ||
         cache.smoothing !== inputs.smoothing
@@ -6924,19 +6914,20 @@ function updateTrackTrailPositionsCache(trackKey, trailEntries = []) {
     const trail = Array.isArray(trailEntries) ? trailEntries : [];
     const lastTs = Number(trail[trail.length - 1]?.ts || 0);
     const cache = __liveTrackTrailPositionsCache.get(trackKey);
-    if (cache && cache.lastTs === lastTs && cache.length === trail.length) {
+    if (cache && cache.lastTs === lastTs && cache.length === trail.length &&
+        cache.firstPosition === trail[0]?.position && cache.lastPosition === trail[trail.length - 1]?.position) {
         return cache.positions;
     }
     const rawPositions = trail
         .map((entry) => entry?.position || null)
         .filter(Boolean);
-    // Preserve accepted observations. Smoothing and straight-line simplification
-    // moved or discarded older vertices when the aircraft turned.
-    const positions = rawPositions;
+    const positions = curveObservedAircraftTrail(rawPositions);
     __liveTrackTrailPositionsCache.set(trackKey, {
         lastTs,
         length: trail.length,
         positions,
+        firstPosition: trail[0]?.position,
+        lastPosition: trail[trail.length - 1]?.position,
     });
     return positions;
 }
@@ -7163,25 +7154,36 @@ function getTrackTrailMinDistanceMeters(track = {}) {
     }
     return LIVE_TRACK_MIN_TRAIL_POINT_DISTANCE_METERS;
 }
+function isDisconnectedTrackTrail(movedMeters, dtMs, track = {}) {
+    if (!Number.isFinite(movedMeters) || !Number.isFinite(dtMs) || dtMs < 0 ||
+        dtMs > LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS) return true;
+    // The history-ingestion filter tolerates 5 km jumps. Visible connections
+    // need a tighter positional allowance, particularly for short sample gaps.
+    return movedMeters > 250 + getTrackHistoryMaxSpeedMps(track) * (dtMs / 1000) * LIVE_TRACK_HISTORY_SPEED_GRACE_FACTOR;
+}
 function commitTrackTrailPosition(trackKey, track = {}, newPosition) {
     if (!isTrackCurrentlyFocused(trackKey) || !newPosition) return;
-    const now = Date.now();
+    const entity = window.__warzoneViewer?.entities?.getById?.(`track-${trackKey}`);
+    const now = Number(entity?.__liveTrackLastCommittedSourceTimestamp || 0);
+    if (!Number.isFinite(now) || now <= 0) return;
     const previousTrail = __liveTrackTrails.get(trackKey) || [];
     let trail = trimTrailEntries(previousTrail, trackKey);
     const lastEntry = trail[trail.length - 1];
     const lastPosition = lastEntry?.position || null;
     const movedMeters = getCartesianDistanceMeters(lastPosition, newPosition);
     if (lastEntry) {
-        const dtMs = Math.max(0, now - Number(lastEntry.ts || now));
-        if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
-            return;
+        const dtMs = now - Number(lastEntry.ts);
+        if (dtMs <= 0) return;
+        if (isDisconnectedTrackTrail(movedMeters, dtMs, track)) {
+            // Start a new visible segment; registry observations remain intact.
+            trail = [];
         }
     }
     const minTrailDistanceMeters = getTrackTrailMinDistanceMeters(track);
     // The CallbackProperty already appends the interpolated live head. No
     // committed point changed: retain the existing curved geometry/cache.
-    if (lastEntry && movedMeters < minTrailDistanceMeters && trail.length === previousTrail.length) return;
-    if (!lastEntry || movedMeters >= minTrailDistanceMeters) {
+    if (trail.length && lastEntry && movedMeters < minTrailDistanceMeters && trail.length === previousTrail.length) return;
+    if (!trail.length || movedMeters >= minTrailDistanceMeters) {
         trail.push({
             position: Cesium.Cartesian3.clone(newPosition),
             ts: now,
@@ -7270,14 +7272,13 @@ function sanitizeSeedTrailEntries(entries = [], track = {}) {
         const movedMeters = getCartesianDistanceMeters(previous.position, next.position);
         if (!Number.isFinite(movedMeters)) continue;
         const dtMs = Math.max(0, Number(next.ts) - Number(previous.ts));
-        if (dtMs === 0 || dtMs > LIVE_TRACK_TRAIL_INTERRUPTION_GAP_MS) {
+        if (dtMs === 0) continue;
+        if (isDisconnectedTrackTrail(movedMeters, dtMs, track)) {
             sanitized.length = 0;
             sanitized.push(next);
             continue;
         }
-        if (isImplausibleTrackMotion(movedMeters, dtMs, track)) {
-            continue;
-        }
+        if (movedMeters < 0.01) continue;
         sanitized.push(next);
     }
     return sanitized;
@@ -7285,6 +7286,8 @@ function sanitizeSeedTrailEntries(entries = [], track = {}) {
 function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
     const sortedEntries = (Array.isArray(historyPoints) ? historyPoints : [])
         .map((point) => {
+            const normalized = normalizeLiveTrackHistoryPoint(point);
+            if (!normalized) return null;
             const lon = Number(point?.lon);
             const lat = Number(point?.lat);
             const altitudeMeters = getTrackPointRenderAltitudeMeters(point, track);
@@ -7293,14 +7296,14 @@ function seedTrackTrailFromHistory(trackKey, track = {}, historyPoints = []) {
             if (!position) return null;
             return {
                 position,
-                ts: parseTrailPointTimestamp(point?.ts),
+                ts: normalized.ts,
             };
         })
         .filter(Boolean)
         .sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0))
         .slice(-LIVE_TRACK_SEED_HISTORY_MAX_POINTS);
     const entries = trimTrailEntries(sanitizeSeedTrailEntries(sortedEntries, track), trackKey);
-    if (entries.length >= 2) {
+    if (entries.length >= 1) {
         __liveTrackTrails.set(trackKey, entries);
         updateTrackTrailPositionsCache(trackKey, entries);
     }
@@ -7321,14 +7324,14 @@ export function mergeLiveTrackHistory(trackKey = "", historyPoints = []) {
     const traversedPoints = committedThrough > 0
         ? currentFlightPoints.filter((point) => Number(point.ts || 0) <= committedThrough)
         : currentFlightPoints;
-    if (traversedPoints.length >= 2) {
+    if (traversedPoints.length >= 1) {
         seedTrackTrailFromHistory(safeTrackKey, entry, traversedPoints);
         getOrCreateTrackTrailEntity(viewer, safeTrackKey, entry);
         syncFocusedRouteEntity(safeTrackKey);
         requestWarzoneRenderBatched();
     }
     const result = {
-        applied: traversedPoints.length >= 2,
+        applied: traversedPoints.length >= 1,
         received: Array.isArray(historyPoints) ? historyPoints.length : 0,
         local: localPoints.length,
         points: currentFlightPoints.length,
@@ -7353,9 +7356,12 @@ function ensureTrackTrailVisible(trackKey, track = {}, lon, lat, alt, headingDeg
     }
     // Do not create synthetic "tail anchors". Seed only from real history data.
     if (!trail.length) {
-        const position = buildTrackTrailCartesian(track, lon, lat, alt, headingDeg);
+        const motion = entity?.__liveTrackMotionState;
+        if (motion && Number(motion.sourceTimestamp) > committedThrough) return;
+        const predicting = motion?.phase === "prediction" || motion?.phase === "prediction_hold";
+        const position = predicting ? motion.endCartesian : getPositionCartesian(entity);
         if (!position) return;
-        const seedEntries = trimTrailEntries([{ position, ts: Date.now() }], trackKey);
+        const seedEntries = trimTrailEntries([{ position, ts: committedThrough || getTrackSourceTimestamp(track) }], trackKey);
         __liveTrackTrails.set(trackKey, seedEntries);
         updateTrackTrailPositionsCache(trackKey, seedEntries);
     }
@@ -8220,7 +8226,7 @@ function animateTrackTo(entity, track = {}, nextLon, nextLat, nextAlt = 0, nextS
         endBillboardRotation = startBillboardRotation + getLiveTrackBillboardRotationDeltaRadians(headingDeltaDeg);
     }
 
-    if (trackKey && !wasPredicting) pushTrackTrailPointFromCartesian(trackKey, track, startCartesian, startHeadingDeg);
+    // Interpolated/correction positions are display state, not observations.
     const prediction = getLiveTrackPredictionTelemetry(track, entity, receivedAt);
     prediction.maxDurationMs = getLiveTrackPredictionWindowMs(cadenceMs);
     prediction.endsAt = startTime + duration + prediction.maxDurationMs;

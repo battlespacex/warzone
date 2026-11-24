@@ -19,6 +19,7 @@ function harness() {
     } },
     __liveTrackRegistry: new Map([['alignment', track]]),
     getTraversedTrackTrailEntries: () => [{ position: Cesium.Cartesian3.fromDegrees(45, 24, 100) }],
+    updateTrackTrailPositionsCache: (_key, entries) => entries.map(entry => entry.position),
     getPositionCartesian: value => value?.position,
     getCartesianDistanceMeters: (a,b) => a && b ? Cesium.Cartesian3.distance(a,b) : Infinity,
     isTrackInFocusVisualContext: () => true,

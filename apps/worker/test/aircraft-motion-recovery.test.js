@@ -138,7 +138,7 @@ test("motion architecture retains latest-target replacement, authoritative trail
   const animate = section(air, "animateTrackTo", "resetLiveTrackRuntimeForLifecycle");
   assert.match(animate, /updateLiveTrackMotionFrame\(entity, receivedAt\)[\s\S]*startCartesian = getPositionCartesian\(entity\)/);
   assert.match(animate, /entity\.__liveTrackMotionState = \{[\s\S]*curveTangents/);
-  assert.match(animate, /if \(trackKey && !wasPredicting\) pushTrackTrailPointFromCartesian/);
+  assert.doesNotMatch(animate, /pushTrackTrailPointFromCartesian\(trackKey, track, startCartesian/);
   assert.doesNotMatch(section(air, "updateLiveTrackPredictionFrame", "updateLiveTrackMotionFrame"), /pushTrackTrailPoint/);
   assert.match(css, /--warzone-live-aircraft-focus-camera-pitch:\s*-58/);
   assert.match(css, /--warzone-live-aircraft-focus-camera-heading-offset:\s*180/);
