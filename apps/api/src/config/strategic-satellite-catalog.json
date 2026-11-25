@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "noradId": "48865",
+    "displayName": "COSMOS 2550 (Pion-NKS 1)",
+    "country": "Russia",
+    "operator": "Russian Space Forces",
+    "association": "known-military-associated",
+    "mission": "Maritime surveillance",
+    "confidence": "confirmed-public",
+    "sourceNote": "South Korea Central Radio Management Service June 2021 launch catalog identifies NORAD 48865 / 2021-056A as Russian Space Forces maritime surveillance payload Pion-NKS 1. Country is record-specific; CIS is not globally relabeled Russia.",
+    "sources": ["https://www.crms.go.kr/download.do?uuid=3a93f9e9-54d1-4038-bfbc-6e867bf1dfdb"]
+  },
+  {
+    "noradId": "36110",
+    "displayName": "YAOGAN-7",
+    "country": "China",
+    "association": "likely-military-associated",
+    "mission": "Mission unconfirmed",
+    "confidence": "inferred",
+    "sourceNote": "CelesTrak identifies NORAD 36110 as YAOGAN-7. Military association follows the existing Yaogan family inference; the cited US Air University discussion describes both dual-use and military Yaogan systems and does not confirm this spacecraft's individual mission.",
+    "sources": ["https://celestrak.org/NORAD/Elements/table.php?FORMAT=csv&GROUP=active", "https://media.defense.gov/2021/Mar/07/2002595026/-1/-1/1/25%252520MCCABE.PDF"]
+  }
+]

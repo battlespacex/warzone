@@ -1,4 +1,4 @@
-import { cloneNoticeTemplate, noticeField, noticeAction } from './warzone-notice-templates.js';
+import { cloneNoticeTemplate, noticeField, noticeAction, setNoticeButtonLabel } from './warzone-notice-templates.js';
 import * as Cesium from 'cesium';
 import { copyNextSceneFrame, assertCaptureReadable, loadImage, downloadBlob, canUseSavePicker } from './warzone-capture-shot.js';
 import { noticeGeometryPoints, noticeStatus } from '../../../apps/shared/geospatial-notices.js';
@@ -185,7 +185,7 @@ export function startNoticeCapture(viewer, notice, { entity = null, onClose = ()
     function render() {
         selectionBox.hidden = !selection; overlay.classList.toggle('has-selection', Boolean(selection)); overlay.classList.toggle('is-drawing', draw);
         aspects.disabled = saving; buttons.DRAW.disabled = saving || !limits; buttons.RESET.disabled = saving; buttons['SAVE AS'].disabled = saving || !selection || !limits;
-        buttons.DRAW.textContent = buttons.DRAW.getAttribute(draw ? 'data-resize-label' : 'data-draw-label');
+        setNoticeButtonLabel(buttons.DRAW, buttons.DRAW.getAttribute(draw ? 'data-resize-label' : 'data-draw-label'));
         if (selection) Object.assign(selectionBox.style, { left: selection.x + 'px', top: selection.y + 'px', width: selection.width + 'px', height: selection.height + 'px' });
         const size = selection ? `${Math.round(selection.width * limits.ratio)} × ${Math.round(selection.height * limits.ratio)} px` : '', minimum = limits ? `Minimum ${limits.minWidth} × ${limits.minHeight}` : '';
         const text = limitation || message || `${size} · ${minimum}${selection && (Math.round(selection.width * limits.ratio) === limits.minWidth || Math.round(selection.height * limits.ratio) === limits.minHeight) ? ' (minimum reached)' : ''}. ${status.getAttribute(draw ? 'data-draw-instructions' : 'data-resize-instructions')}`;

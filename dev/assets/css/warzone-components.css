@@ -7525,6 +7525,10 @@ body:not(.is-operational-report-open) .warzone-view {
     max-height: var(--wz-notice-panel-max-height);
 }
 
+.wz-notice-popup  {
+    max-height: 55vh !important;
+}
+
 :is(#warzone-notice-panel, #warzone-notice-popup).wz-notice-popup {
     width: var(--wz-notice-popup-width);
 }
@@ -7563,6 +7567,25 @@ body:not(.is-operational-report-open) .warzone-view {
     max-width: 100%;
     width: 100%;
     white-space: normal;
+}
+
+/* Expanded NOTAM popup buttons */
+#warzone-notice-popup .wz-notice-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+}
+
+#warzone-notice-popup .wz-notice-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 .wz-notice-controls select {
@@ -7613,6 +7636,7 @@ body:not(.is-operational-report-open) .warzone-view {
     background: var(--color-bg-row);
     padding: 1rem 1.2rem;
     clip-path: var(--clippath-shape-3);
+    margin: 1rem 0 1.5rem
 }
 
 :is(#warzone-notice-panel, #warzone-notice-popup) details>summary {
@@ -7622,6 +7646,12 @@ body:not(.is-operational-report-open) .warzone-view {
     padding: 0 0 1rem;
 }
 
+
+:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-data-list {
+    font-size: var(--text-sm);
+    margin-bottom: 1.5rem
+}
+
 :is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-data-list li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
@@ -7629,9 +7659,6 @@ body:not(.is-operational-report-open) .warzone-view {
     overflow-wrap: anywhere;
 }
 
-:is(#warzone-notice-panel, #warzone-notice-popup) .wz-widget-data-list {
-    font-size: var(--text-xs);
-}
 
 /* Replaceable SVG for genuine geolocated cyber event markers, using existing ownership/picking. */
 .wzhs[data-category="cyber"] .wzhs__icon span::before {
@@ -7652,6 +7679,14 @@ body:not(.is-operational-report-open) .warzone-view {
 :is(#warzone-notice-panel, #warzone-notice-popup).wz-notice-preview {
     width: var(--wz-notice-preview-max-width);
     min-width: min(var(--wz-notice-preview-min-width), calc(100vw - 2rem));
+}
+
+.wz-notice-preview .wz-widget-data-list li:first-child {
+text-transform: uppercase;
+    letter-spacing: 0.3rem;
+    font-weight: 600;
+    grid-template-columns: 100% 1fr !important;
+    color: var(--warzone-cluster-signal);
 }
 
 .wz-notice-preview .wz-notice-summary {
@@ -7692,23 +7727,20 @@ body:not(.is-operational-report-open) .warzone-view {
 
 .wz-notice-capture__toolbar {
     position: absolute;
-    width: max-content;
-    max-width: min(58rem, calc(100% - 2rem));
+    width: auto;
     box-sizing: border-box;
-    max-height: calc(100% - 2rem);
-    overflow-y: auto;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: .6rem;
-    padding: 1rem;
-    background: var(--color-bg-header);
     color: var(--color-text-heading);
     cursor: default;
+    width: fit-content;
+    flex-direction: row;
 }
 
 .wz-notice-capture__toolbar span {
     flex: 1 0 100%;
-    font-size: var(--text-xs);
+    display: none
 }
 
 .wz-notice-capture__toolbar button {
@@ -7718,12 +7750,6 @@ body:not(.is-operational-report-open) .warzone-view {
 
 .wz-notice-capture__toolbar select {
     min-width: 0;
-    max-width: 100%;
-    font-size: var(--text-xs);
-    padding: .7rem;
-    background: var(--color-bg-row);
-    color: var(--color-text-heading);
-    border: 1px solid var(--color-text-dim);
 }
 
 .wz-notice-capture.is-drawing .wz-notice-capture__selection {
@@ -7731,6 +7757,7 @@ body:not(.is-operational-report-open) .warzone-view {
 }
 
 .wz-notice-preview-leader {
+    opacity: var(--wz-notam-connector-opacity);
     position: fixed;
     inset: 0;
     width: 100vw;
@@ -7742,8 +7769,13 @@ body:not(.is-operational-report-open) .warzone-view {
 
 .wz-notice-preview-leader line {
     stroke: var(--wz-notice-line-color);
-    stroke-width: var(--wz-notice-line-width);
+    stroke-width: var(--wz-notam-connector-width);
 }
+
+.wz-notice-preview-leader stop { stop-color: currentColor; }
+.wz-notice-preview-leader stop:first-child { stop-opacity: 1; }
+.wz-notice-preview-leader stop:nth-child(2) { stop-opacity: var(--wz-notam-connector-fade-mid-opacity); }
+.wz-notice-preview-leader stop:last-child { stop-opacity: 0; }
 
 /* Measured only during PNG export; never mounted in normal globe interaction. */
 .notam-export {
@@ -7932,4 +7964,51 @@ body:not(.is-operational-report-open) .warzone-view {
 #warzone-notice-popup .wz-widget-header {
     cursor: default;
     touch-action: auto;
+}
+
+#warzone-notice-popup .wz-notice-correlation {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 1rem 0 1.5rem;
+    padding: 1rem;
+    background: var(--color-bg-row);
+}
+
+
+/* Hide browser's default summary triangle */
+#warzone-notice-popup details > summary {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    list-style: none;
+    cursor: pointer;
+    height: 2rem;
+    margin-bottom: 1rem;
+}
+
+#warzone-notice-popup details > summary .title {
+    padding-top: .5rem;
+}
+
+#warzone-notice-popup details > summary::marker {
+    color: var(--color-teal-glow);
+}
+
+#warzone-notice-popup details > summary::-webkit-details-marker {
+    display: none;
+}
+
+/* Your existing StratOps icon */
+#warzone-notice-popup details > summary .static-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    transition: transform 0.2s ease;
+}
+
+/* Rotate icon when expanded */
+#warzone-notice-popup details[open] > summary .static-icon {
+    transform: rotate(180deg);
 }

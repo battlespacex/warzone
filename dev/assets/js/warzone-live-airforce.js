@@ -1791,6 +1791,9 @@ function getFormationDevGroupKey(track = {}) {
     if (String(metadata.simulation || track.simulation || "") !== "formation-dev-tuner") return "";
     return String(track.formation_key || metadata.formation_key || "").trim();
 }
+function isLocalAirPatrolTrack(track = {}) {
+    return Boolean(getFormationDevGroupKey(track)) && getTrackMetadata(track).simulated_patrol === true;
+}
 function getLiveTrackSubtypeScale(track = {}, fallbackScale = 16, computedStyle = null) {
     if (isTrackInFocusVisualContext(track)) {
         return getFocusedAircraftModelScale(track, computedStyle);
@@ -3310,6 +3313,8 @@ function shouldRenderLiveTrackDataState(trackKey = "", entry = null, options = {
     if (options?.reportSnapshot === true || entry?.__reportSnapshotAsset === true) return true;
     if (!isLayerEnabled("aircraft")) return false;
     if (!entry?.active) return false;
+    // Explicit developer patrols must be instantiated before their existing focus path can select them.
+    if (isLocalAirPatrolTrack(entry)) return true;
     if (!matchesLiveTrackVisibilityFilter(trackKey, entry)) return false;
     return shouldShowTrackInFocusMode(trackKey, entry, options?.focusedPosition || null);
 }
@@ -6817,9 +6822,12 @@ function getTrackAttitude(track, resolvedHeadingDeg) {
         const observationTs = rawObservationTs < 1e11 ? rawObservationTs * 1000 : rawObservationTs;
         const elapsedSec = (observationTs - state.lastBankObservationTs) / 1000;
         const speedKts = Number(track.speed_kts ?? track.ground_speed_kts ?? getTrackMetadata(track).speed_kts);
-        const supportedTurn = state.lastBankObservationTs > 0 && elapsedSec >= 1 &&
+        // The local patrol supplies smooth quarter-second fixes, unlike provider observations.
+        // Preserve the live-data cadence and noise rejection for every other track.
+        const localPatrol = isLocalAirPatrolTrack(track);
+        const supportedTurn = state.lastBankObservationTs > 0 && elapsedSec > 0 && (localPatrol || elapsedSec >= 1) &&
             elapsedSec <= 60 && Number.isFinite(speedKts) && speedKts >= LIVE_TRACK_MIN_PREDICTION_SPEED_KTS &&
-            Math.abs(headingDeltaDeg) > bankDeadbandDeg;
+            Math.abs(headingDeltaDeg) > (localPatrol ? 0.000001 : bankDeadbandDeg);
         const turnRateRadPerSec = supportedTurn ? (headingDeltaDeg / elapsedSec) * Math.PI / 180 : 0;
         const estimatedRollDeg = Math.atan((speedKts * 0.514444 * turnRateRadPerSec) / 9.81) * 180 / Math.PI;
         const targetRollDeg = supportedTurn

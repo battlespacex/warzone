@@ -7,6 +7,14 @@ const __dirname = dirname(__filename);
 
 const CELESTRAK_GP_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=JSON";
 const CELESTRAK_SATCAT_URL = "https://celestrak.org/pub/satcat.csv";
+// The military GP group remains the catalog boundary. These are the only
+// explicit civilian exceptions; never ingest the broader stations/active groups.
+const SPACE_STATION_ALLOWLIST = Object.freeze({
+    "25544": Object.freeze({ displayName: "International Space Station (ISS)", operator: "International partnership", country: "International partnership" }),
+    "48274": Object.freeze({ displayName: "Chinese Space Station (Tiangong)", operator: "China", country: "China" }),
+});
+const CATALOG_POLICY = "military-curated-international-with-two-space-stations-v2";
+const stationGpUrl = noradId => `https://celestrak.org/NORAD/elements/gp.php?CATNR=${noradId}&FORMAT=JSON`;
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 12000;
@@ -31,6 +39,11 @@ const OWNER_NAMES = {
     JPN: "Japan",
     NATO: "NATO",
     PRC: "China",
+    SKOR: "South Korea",
+    SPN: "Spain",
+    BRAZ: "Brazil",
+    AUS: "Australia",
+    UAE: "United Arab Emirates",
     ROK: "South Korea",
     RUS: "Russia",
     UK: "United Kingdom",
@@ -268,6 +281,11 @@ function associationLabel(value = "") {
 }
 
 function getClassification(record = {}, satcat = {}, override = null) {
+    if (Object.hasOwn(SPACE_STATION_ALLOWLIST, cleanCatalogId(record.NORAD_CAT_ID))) {
+        return { association: "space-station", associationLabel: "Space Station", mission: "space-station", missionLabel: "Space Station",
+            confidence: "confirmed-public-classification", confidenceLabel: "Confirmed public classification", inferred: false,
+            sourceNote: "Explicit space-station exception to the military catalog; public orbital elements from CelesTrak, not a military classification." };
+    }
     if (override) {
         const mission = cleanText(override.mission, "Mission unconfirmed") || "Mission unconfirmed";
         const association = cleanText(override.association, "military-associated");
@@ -379,8 +397,9 @@ function isValidGpRecord(record = {}) {
 function normalizeSatelliteRecord(record = {}, satcat = {}, override = null) {
     const noradId = cleanCatalogId(record.NORAD_CAT_ID);
     if (!noradId || !isValidGpRecord(record)) return null;
+    if (Object.hasOwn(SPACE_STATION_ALLOWLIST, noradId)) override = SPACE_STATION_ALLOWLIST[noradId];
 
-    const ownerCode = cleanNullableText(satcat.OWNER);
+    const ownerCode = cleanNullableText(satcat.OWNER || satcat.COUNTRY);
     const displayName = cleanNullableText(override?.displayName)
         || cleanNullableText(record.OBJECT_NAME)
         || cleanNullableText(satcat.OBJECT_NAME)
@@ -396,7 +415,7 @@ function normalizeSatelliteRecord(record = {}, satcat = {}, override = null) {
         objectName: cleanNullableText(record.OBJECT_NAME) || displayName,
         noradId,
         internationalDesignator: cleanNullableText(record.OBJECT_ID || satcat.OBJECT_ID),
-        ownerCode: cleanNullableText(override?.country) || ownerCode,
+        ownerCode,
         country: cleanNullableText(override?.country) || (ownerCode ? OWNER_NAMES[ownerCode] || ownerCode : null),
         operator: cleanNullableText(override?.operator),
         launchDate: /^\d{4}-\d{2}-\d{2}$/.test(launchDate || "") ? launchDate : null,
@@ -490,18 +509,60 @@ async function refreshSatellitePayload({ logger = console } = {}) {
     if (!Array.isArray(records)) {
         throw new Error("CelesTrak military GP payload was not an array");
     }
-    const normalized = records
+    const curatedSupplements = await Promise.all([...curated.entries()].filter(([id, item]) =>
+        !Object.hasOwn(SPACE_STATION_ALLOWLIST, id) &&
+        ["military-associated", "known-military-associated", "likely-military-associated"].includes(item.association) &&
+        Array.isArray(item.sources) && item.sources.length > 0
+    ).map(async ([id]) => {
+        if (records.some(record => cleanCatalogId(record?.NORAD_CAT_ID) === id && isValidGpRecord(record))) return [];
+        try {
+            const result = await readJsonLimited(stationGpUrl(id), { maxBytes: GP_MAX_BYTES });
+            const accepted = Array.isArray(result) ? result.filter(record => cleanCatalogId(record?.NORAD_CAT_ID) === id && isValidGpRecord(record)
+                && !/\b(DEB|R\/B|ROCKET BODY)\b/i.test(record.OBJECT_NAME || "")
+                && (!satcatMap.get(id)?.OBJECT_TYPE || satcatMap.get(id).OBJECT_TYPE === "PAY")) : [];
+            if (accepted.length) return accepted;
+        } catch { /* Retain existing elements through supplemental outages. */ }
+        const cached = memoryCache?.satellites?.find(record => record.noradId === id);
+        return cached?.omm && isValidGpRecord(cached.omm)
+            && !/\b(DEB|R\/B|ROCKET BODY)\b/i.test(cached.omm.OBJECT_NAME || "")
+            && (!satcatMap.get(id)?.OBJECT_TYPE || satcatMap.get(id).OBJECT_TYPE === "PAY") ? [cached.omm] : [];
+    }));
+    const supplements = await Promise.all(Object.keys(SPACE_STATION_ALLOWLIST).map(async noradId => {
+        if (records.some(record => cleanCatalogId(record?.NORAD_CAT_ID) === noradId && isValidGpRecord(record))) return [];
+        try {
+            const result = await readJsonLimited(stationGpUrl(noradId), { maxBytes: GP_MAX_BYTES });
+            // Defensive boundary: even an unexpected full catalog cannot admit
+            // another civilian object through a station-specific response.
+            const accepted = Array.isArray(result) ? result.filter(record => cleanCatalogId(record?.NORAD_CAT_ID) === noradId && isValidGpRecord(record)) : [];
+            if (accepted.length) return accepted;
+        } catch {
+            // A supplemental outage must not interrupt the military catalog.
+        }
+        const cached = memoryCache?.satellites?.find(record => record.noradId === noradId);
+        return cached?.omm && isValidGpRecord(cached.omm) ? [cached.omm] : [];
+    }));
+    const uniqueRecords = new Map();
+    for (const record of [...records, ...curatedSupplements.flat(), ...supplements.flat()]) {
+        if (isValidGpRecord(record)) {
+            const id = cleanCatalogId(record.NORAD_CAT_ID), previous = uniqueRecords.get(id);
+            if (!previous || Date.parse(record.EPOCH) > Date.parse(previous.EPOCH)) uniqueRecords.set(id, record);
+        }
+    }
+    const allNormalized = [...uniqueRecords.values()]
         .map((record) => {
             const noradId = cleanCatalogId(record?.NORAD_CAT_ID);
             const satcat = noradId ? satcatMap.get(noradId) || {} : {};
             return normalizeSatelliteRecord(record, satcat, noradId ? curated.get(noradId) : null);
         })
-        .filter(Boolean)
-        .slice(0, MAX_RESPONSE_RECORDS);
+        .filter(Boolean);
+    const stations = allNormalized.filter(record => Object.hasOwn(SPACE_STATION_ALLOWLIST, record.noradId));
+    const normalized = allNormalized.filter(record => !Object.hasOwn(SPACE_STATION_ALLOWLIST, record.noradId))
+        .slice(0, MAX_RESPONSE_RECORDS - stations.length).concat(stations);
 
     const fetchedAt = gpCacheAgeMs ? new Date(Date.now()-gpCacheAgeMs).toISOString() : nowIso();
     const payload = {
         source: "CelesTrak",
+        catalogPolicy: CATALOG_POLICY,
         sourceType: "public-orbital-elements",
         sourceUrl: CELESTRAK_GP_URL,
         satcatUrl: CELESTRAK_SATCAT_URL,
@@ -528,6 +589,7 @@ async function refreshSatellitePayload({ logger = console } = {}) {
 
 function shouldRefresh(payload, forceRefresh = false) {
     if (forceRefresh) return true;
+    if (payload?.catalogPolicy !== CATALOG_POLICY) return true;
     if (!payload?.fetchedAt) return true;
     const fetchedMs = Date.parse(payload.fetchedAt);
     return !Number.isFinite(fetchedMs) || (Date.now() - fetchedMs) >= CACHE_TTL_MS;

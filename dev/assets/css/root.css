@@ -1750,14 +1750,14 @@
 
         --warzone-live-naval-model-scale: 1.1;
        --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
-        --warzone-live-naval-model-scale-max: 10;
-       --warzone-live-naval-model-min-pixel-size: 29; /* Regional visibility floor; close-up endpoint unchanged. */
+        --warzone-live-naval-model-scale-max: 11;
+       --warzone-live-naval-model-min-pixel-size: 39; /* Regional visibility floor; close-up endpoint unchanged. */
         --warzone-live-naval-focus-initial-distance: 400;
         --warzone-live-naval-ctr-focused-distance: 400;
 
         /* NAVAL GLB SIZE — normal and Focus share this curve */
         --warzone-live-naval-model-scale-min-carrier: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-carrier: var(--warzone-live-naval-model-scale-max);
+        --warzone-live-naval-model-scale-max-carrier: 26;
         --warzone-live-naval-model-scale-min-amphibious: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-amphibious: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-cruiser: var(--warzone-live-naval-model-scale-min);
@@ -1771,11 +1771,11 @@
         --warzone-live-naval-model-scale-min-intelligence: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-intelligence: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-ssbn: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-ssbn: var(--warzone-live-naval-model-scale-max);
+        --warzone-live-naval-model-scale-max-ssbn: 9;
         --warzone-live-naval-model-scale-min-ssn: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-ssn: var(--warzone-live-naval-model-scale-max);
+        --warzone-live-naval-model-scale-max-ssn: 9;
         --warzone-live-naval-model-scale-min-ssk: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-ssk: var(--warzone-live-naval-model-scale-max);
+        --warzone-live-naval-model-scale-max-ssk: 9;
         --warzone-live-naval-model-scale-min-aip_submarine: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-aip_submarine: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-submarine: var(--warzone-live-naval-model-scale-min);
@@ -2471,7 +2471,25 @@
     --wz-notice-hatch-opacity: 0.22;
     --wz-notice-hatch-repeat: 32;
     --wz-notice-height: 60; /* Metres above ellipsoid. */
-    --wz-notice-marker-size: 9;
+    /* NOTAM billboard and connector styling. Leave colors unset to retain
+       category/status colors; set either color to explicitly override it. */
+    --wz-notam-marker-color: initial;
+    --wz-notam-marker-size: 12px;
+    --wz-notam-marker-width: var(--wz-notice-marker-size);
+    --wz-notam-marker-height: var(--wz-notice-marker-size);
+    --wz-notam-marker-border-width: 2px;
+    --wz-notam-marker-radius: 2px;
+    --wz-notam-marker-background: transparent;
+    --wz-notam-marker-hover-scale: 1.08;
+    --wz-notam-marker-selected-scale: 1.15;
+    --wz-notam-connector-color: initial;
+    --wz-notam-connector-width: 1px;
+    --wz-notam-connector-opacity: 0.75;
+    --wz-notam-connector-fade-midpoint: 75%;
+    --wz-notam-connector-fade-mid-opacity: 0.2;
+    --wz-notam-popup-gap: 55px;
+    /* Existing size controls remain compatible, without a second default. */
+    --wz-notice-marker-size: var(--wz-notam-marker-size);
     --wz-notice-show-radius: 0; /* 1 opts into approximate source radius circles. */
     --wz-notice-panel-width: 34rem;
     --wz-notice-popup-width: 32rem;

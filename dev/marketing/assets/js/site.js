@@ -465,6 +465,55 @@ import './contact.js';
     }
   }
 
+
+  // Lazy-load the temporary hero movie as a background in the Domains and Tools sections.
+  // The existing hero video toggle remains independent; these backgrounds have no controls.
+  // Honor Save-Data, reduced-motion, small-screen and tab-visibility preferences.
+  const sectionBackgroundVideos = Array.from(document.querySelectorAll('.section-background-video[data-src]'));
+  function syncSectionBackgroundVideos() {
+    sectionBackgroundVideos.forEach((sectionVideo) => {
+      const shouldPlay = sectionVideo.dataset.inView === 'true'
+        && !document.hidden && mayAutoplayVideo();
+      if (!shouldPlay) {
+        sectionVideo.pause();
+        return;
+      }
+      if (!sectionVideo.getAttribute('src') && sectionVideo.dataset.src) {
+        sectionVideo.src = sectionVideo.dataset.src;
+        sectionVideo.load();
+      }
+      if (sectionVideo.paused) {
+        const playResult = sectionVideo.play();
+        if (playResult && typeof playResult.catch === 'function') {
+          playResult.catch(() => {}); // Poster remains if autoplay is blocked.
+        }
+      }
+    });
+  }
+  if (sectionBackgroundVideos.length) {
+    if ('IntersectionObserver' in window) {
+      const sectionVideoObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          entry.target.dataset.inView = String(entry.isIntersecting);
+        });
+        syncSectionBackgroundVideos();
+      }, { threshold: 0.05 });
+      sectionBackgroundVideos.forEach((item) => sectionVideoObserver.observe(item));
+    } else {
+      sectionBackgroundVideos.forEach((item) => { item.dataset.inView = 'true'; });
+      syncSectionBackgroundVideos();
+    }
+    document.addEventListener('visibilitychange', syncSectionBackgroundVideos);
+    [reducedMotion, smallScreen, network].forEach((queryOrConnection) => {
+      if (!queryOrConnection) return;
+      if (typeof queryOrConnection.addEventListener === 'function') {
+        queryOrConnection.addEventListener('change', syncSectionBackgroundVideos);
+      } else if (typeof queryOrConnection.addListener === 'function') {
+        queryOrConnection.addListener(syncSectionBackgroundVideos);
+      }
+    });
+  }
+
   function motionChange() {
     if (reducedMotion.matches) {
       parallaxItems.forEach((item) => item.style.removeProperty("--parallax-y"));

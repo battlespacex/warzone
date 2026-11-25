@@ -24,6 +24,21 @@ test('capture labels can change without breaking action bindings or preset avail
  const draw=toolbar.querySelector('[data-action="draw"]');draw.setAttribute('data-resize-label','Adjust frame');draw.onclick();assert.equal(draw.textContent,'Adjust frame');
  const stop=toolbar.querySelector('[data-action="cancel"]');stop.textContent='Close capture';stop.onclick();assert.equal(h.elements.length,0);assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);cancel();
 });
+
+test('capture toolbar preserves intentional spans through initialization and repeated draw/reset changes',()=>{
+ const h=harness(); h.c.startNoticeCapture(h.viewer,notice());
+ const toolbar=h.elements[0].children[1];
+ const buttons=['draw','reset','cancel','save'].map(name=>toolbar.querySelector(`[data-action="${name}"]`));
+ const spans=buttons.map(button=>button.querySelector('span'));
+ assert.ok(spans.every(Boolean));
+ for(let i=0;i<20;i++) {
+  buttons[0].onclick(); assert.equal(buttons[0].textContent,'RESIZE');
+  buttons[0].onclick(); assert.equal(buttons[0].textContent,'DRAW');
+  buttons[1].onclick();
+  buttons.forEach((button,index)=>assert.equal(button.querySelector('span'),spans[index]));
+ }
+ buttons[2].onclick(); assert.equal(h.elements.length,0);
+});
 test('capture rectangle clamps reverse drags and native crop preserves DPI, geography, branding and UTC',async()=>{
  const h=harness();assert.deepEqual(JSON.parse(JSON.stringify(h.c.captureRectangle({x:500,y:500},{x:-50,y:20},800,600))),{x:0,y:20,width:500,height:480});
  const blob=await h.c.composeNoticeCapture(h.viewer,notice(),{x:100,y:100,width:400,height:300});assert.equal(blob.type,'image/png');
@@ -37,24 +52,24 @@ test('capture composition receives exported pixel coordinates when framebuffer a
  assert.equal(moves.length,0);assert.equal(h.compositions[0][7],1);assert.equal(h.compositions[0][4],800);assert.equal(h.compositions[0][5],600);assert.deepEqual(JSON.parse(JSON.stringify(h.compositions[0][6])),{x:400,y:300});assert.deepEqual(h.canvases[0].ctx.draws[0].slice(1),[200,300,800,900,0,0,800,600]);
 });
 test('DRAW/RESET/redraw/move/resize/CANCEL and ESC affect only the screenshot selection and restore inputs',()=>{
- const h=harness();for(let i=0;i<10;i++){const cancel=h.c.startNoticeCapture(h.viewer,notice());assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,false);const overlay=h.elements[0],selection=overlay.children[0],toolbar=overlay.children[1],buttons=Object.fromEntries(toolbar.children.filter(n=>n.tag==='button').map(n=>[n.textContent,n]));
- assert.equal(buttons['SAVE AS'].disabled,false);assert.equal(selection.style.width,'360px');assert.equal(selection.style.height,'360px');
- buttons.DRAW.onclick();h.event(overlay,'pointerdown',100,100);h.event(overlay,'pointermove',500,400);h.event(overlay,'pointerup',500,400);assert.equal(buttons['SAVE AS'].disabled,false);assert.equal(selection.style.width,'400px');assert.equal(selection.style.height,'400px');
+ const h=harness();for(let i=0;i<10;i++){const cancel=h.c.startNoticeCapture(h.viewer,notice());assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,false);const overlay=h.elements[0],selection=overlay.children[0],toolbar=overlay.children[1],buttons=Object.fromEntries(toolbar.children.filter(n=>n.tag==='button').map(n=>[n.getAttribute('data-action').toUpperCase(),n]));
+ assert.equal(buttons.SAVE.disabled,false);assert.equal(selection.style.width,'360px');assert.equal(selection.style.height,'360px');
+ buttons.DRAW.onclick();h.event(overlay,'pointerdown',100,100);h.event(overlay,'pointermove',500,400);h.event(overlay,'pointerup',500,400);assert.equal(buttons.SAVE.disabled,false);assert.equal(selection.style.width,'400px');assert.equal(selection.style.height,'400px');
  h.event(overlay,'pointerdown',200,200,selection);h.event(overlay,'pointermove',220,210,selection);h.event(overlay,'pointerup',220,210,selection);assert.equal(selection.style.left,'120px');
  h.event(overlay,'pointerdown',520,510,selection.children[0]);h.event(overlay,'pointermove',550,550,selection.children[0]);h.event(overlay,'pointerup',550,550,selection.children[0]);assert.equal(selection.style.width,'440px');
  h.event(overlay,'pointerdown',550,550,selection.children[0]);h.event(overlay,'pointermove',121,111,selection.children[0]);h.event(overlay,'pointerup',121,111,selection.children[0]);assert.equal(selection.style.width,'360px');
- buttons.RESET.onclick();assert.equal(selection.hidden,false);assert.equal(selection.style.width,'360px');assert.equal(buttons['SAVE AS'].disabled,false);assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,false);
+ buttons.RESET.onclick();assert.equal(selection.hidden,false);assert.equal(selection.style.width,'360px');assert.equal(buttons.SAVE.disabled,false);assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,false);
  if(i%2)h.listeners.get('keydown')({key:'Escape',preventDefault(){},stopPropagation(){}});else buttons.CANCEL.onclick();cancel();assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);assert.equal(h.elements.length,0);assert.equal(h.listeners.size,0);assert.equal(h.windowListeners.size,0);}
  h.viewer.scene.screenSpaceCameraController.enableInputs=false;assert.throws(()=>h.c.startNoticeCapture(h.viewer,notice()),/drawing or camera transition/);assert.equal(h.elements.length,0);
 });
 test('all presets enforce exact minimum export dimensions and reject unsupported viewports',async()=>{
  for(const [aspect,width,height]of [['1:1',720,720],['16:9',912,513],['9:16',513,912],['custom',512,512]]){
-  const h=harness();h.c.startNoticeCapture(h.viewer,notice());const overlay=h.elements[0],box=overlay.children[0],toolbar=overlay.children[1],select=toolbar.children.find(n=>n.tag==='select');select.value=aspect;select.onchange();
+  const h=harness();h.c.startNoticeCapture(h.viewer,notice());const overlay=h.elements[0],box=overlay.children[0],toolbar=overlay.children[1],select=toolbar.querySelector('[data-action="aspect"]');select.value=aspect;select.onchange();
   assert.equal(Math.round(parseFloat(box.style.width)*2),width);assert.equal(Math.round(parseFloat(box.style.height)*2),height);
   for(const end of [{x:101,y:101},{x:0,y:0},{x:800,y:600}]){h.event(overlay,'pointerdown',100,100);h.event(overlay,'pointermove',end.x,end.y);h.event(overlay,'pointerup',end.x,end.y);const w=Math.round(parseFloat(box.style.width)*2),ht=Math.round(parseFloat(box.style.height)*2);assert.ok(w>=width&&ht>=height);if(aspect!=='custom')assert.equal(w*height,ht*width);}
-  const cancel=toolbar.children.find(n=>n.textContent==='CANCEL');cancel.onclick();
+  const cancel=toolbar.querySelector('[data-action="cancel"]');cancel.onclick();
  }
- const h=harness();h.viewer.scene.canvas.width=400;h.viewer.scene.canvas.height=300;h.c.startNoticeCapture(h.viewer,notice());const toolbar=h.elements[0].children[1];assert.match(toolbar.children[0].textContent,/needs at least 720 × 720/);assert.equal(toolbar.children.find(n=>n.textContent==='SAVE AS').disabled,true);
+ const h=harness();h.viewer.scene.canvas.width=400;h.viewer.scene.canvas.height=300;h.c.startNoticeCapture(h.viewer,notice());const toolbar=h.elements[0].children[1];assert.match(toolbar.children[0].textContent,/needs at least 720 × 720/);assert.equal(toolbar.querySelector('[data-action="save"]').disabled,true);
  await assert.rejects(h.c.composeNoticeCapture(h.viewer,notice(),{x:0,y:0,width:400,height:300}),/needs at least 512 × 512/);
 });
 test('Escape and pointer cancellation restore the previous valid selection during a gesture',()=>{
@@ -86,12 +101,12 @@ test('export validation rejects undersized selections and ratio mismatches befor
 test('native Save As writes once, picker dismissal remains editable, and cancellation prevents a late export',async()=>{
  const h=harness(),writes=[];h.c.canUseSavePicker=()=>true;
  h.c.window.showSaveFilePicker=async()=>({createWritable:async()=>({write:async blob=>writes.push(blob),close:async()=>writes.push('closed')})});
- h.c.startNoticeCapture(h.viewer,notice());await h.elements[0].children[1].children.find(n=>n.textContent==='SAVE AS').onclick();
+ h.c.startNoticeCapture(h.viewer,notice());await h.elements[0].children[1].querySelector('[data-action="save"]').onclick();
  assert.equal(writes[0].type,'image/png');assert.equal(writes[1],'closed');assert.equal(writes.length,2);assert.equal(h.downloads.length,0);assert.equal(h.elements.length,0);
  const dismissed=harness();dismissed.c.canUseSavePicker=()=>true;dismissed.c.window.showSaveFilePicker=async()=>{const error=Error('dismissed');error.name='AbortError';throw error;};
- const close=dismissed.c.startNoticeCapture(dismissed.viewer,notice()),save=dismissed.elements[0].children[1].children.find(n=>n.textContent==='SAVE AS');await save.onclick();assert.equal(save.disabled,false);assert.equal(dismissed.elements.length,1);assert.equal(dismissed.canvases.length,0);close();
+ const close=dismissed.c.startNoticeCapture(dismissed.viewer,notice()),save=dismissed.elements[0].children[1].querySelector('[data-action="save"]');await save.onclick();assert.equal(save.disabled,false);assert.equal(dismissed.elements.length,1);assert.equal(dismissed.canvases.length,0);close();
  const pending=harness();let choose;pending.c.canUseSavePicker=()=>true;pending.c.window.showSaveFilePicker=()=>new Promise(resolve=>{choose=resolve;});
- const cancel=pending.c.startNoticeCapture(pending.viewer,notice()),saving=pending.elements[0].children[1].children.find(n=>n.textContent==='SAVE AS').onclick();cancel();choose({});await saving;
+ const cancel=pending.c.startNoticeCapture(pending.viewer,notice()),saving=pending.elements[0].children[1].querySelector('[data-action="save"]').onclick();cancel();choose({});await saving;
  assert.equal(pending.canvases.length,0);assert.equal(pending.elements.length,0);assert.equal(pending.viewer.scene.screenSpaceCameraController.enableInputs,true);
 });
 test('a framebuffer resolution change while loading branding cannot silently export different dimensions',async()=>{
@@ -99,7 +114,7 @@ test('a framebuffer resolution change while loading branding cannot silently exp
  await assert.rejects(h.c.composeNoticeCapture(h.viewer,notice(),{x:100,y:100,width:400,height:300}),/capture resolution changed/);assert.equal(h.canvases.length,0);
 });
 test('SAVE AS downloads a branded PNG and failures never silently export incomplete images',async()=>{
- const h=harness();h.c.startNoticeCapture(h.viewer,notice());const overlay=h.elements[0],toolbar=overlay.children[1],save=toolbar.children.find(n=>n.textContent==='SAVE AS');
+ const h=harness();h.c.startNoticeCapture(h.viewer,notice());const overlay=h.elements[0],toolbar=overlay.children[1],save=toolbar.querySelector('[data-action="save"]');
  h.event(overlay,'pointerdown',100,100);h.event(overlay,'pointermove',500,400);h.event(overlay,'pointerup',500,400);await save.onclick();assert.equal(h.downloads.length,1);assert.match(h.downloads[0].name,/^StratOps_NOTAM_\d{4}-\d{2}-\d{2}_\d{6}Z\.png$/);assert.equal(h.elements.length,0);assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
  for(const options of [{logoError:true},{taint:true},{offscreen:true}]){const failed=harness(options);await assert.rejects(failed.c.composeNoticeCapture(failed.viewer,notice(),{x:100,y:100,width:400,height:300}));assert.equal(failed.downloads.length,0);}
  const expired=notice();expired.effectiveUntil=new Date(Date.now()-1000).toISOString();await assert.rejects(h.c.composeNoticeCapture(h.viewer,expired,{x:100,y:100,width:400,height:300}),/no longer current/);

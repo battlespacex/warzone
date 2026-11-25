@@ -74,6 +74,28 @@ export function reportedNavalCategory(vessel = {}) {
     return "unknown";
 }
 
+// Reported vessel type is independent of verified ownership. Never inspect a
+// vessel name, callsign, flag or name-derived frontend subtype here.
+export function reportedVesselType(vessel = {}) {
+    const m = vessel.metadata || {};
+    const fields = [vessel.ship_type, vessel.shipType, vessel.ship_type_name, vessel.vessel_type,
+        m.ship_type, m.shipType, m.ship_type_name, m.shipTypeName, m.vessel_type, m.vesselType];
+    const aliases = { 'aircraft carrier': 'carrier', 'patrol vessel': 'patrol', 'patrol boat': 'patrol',
+        'coast guard': 'patrol', 'coast guard cutter': 'patrol', 'naval auxiliary': 'auxiliary',
+        'support ship': 'auxiliary', 'search and rescue': 'search_and_rescue', 'towing': 'tug' };
+    for (const field of fields) {
+        const value = text(field).toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+        const category = aliases[value] || value.replace(/ /g, '_');
+        if (categories.has(category) || ['cargo', 'tanker', 'passenger', 'fishing', 'search_and_rescue', 'law_enforcement', 'pilot', 'other'].includes(category)) return category;
+    }
+    const raw = vessel.ship_type_code ?? m.ship_type_code ?? fields.find(value => value != null && text(value) !== '');
+    const code = Number(raw);
+    if (code >= 70 && code <= 79) return 'cargo';
+    if (code >= 80 && code <= 89) return 'tanker';
+    if (code >= 60 && code <= 69) return 'passenger';
+    return ({30:'fishing',31:'tug',32:'tug',50:'pilot',51:'search_and_rescue',52:'tug',55:'law_enforcement',90:'other'})[code] || 'unknown';
+}
+
 export function resolveNavalIdentity(vessel = {}, { records = [], trustEmbedded = true } = {}) {
     const m = vessel.metadata || {};
     const ids = navalIdentifiers(vessel);
@@ -108,7 +130,7 @@ export function resolveNavalIdentity(vessel = {}, { records = [], trustEmbedded 
     const record = conflicts.length ? null : valid[0] || null;
     const status = record && ["military", "commercial"].includes(record.military_status)
         ? record.military_status : (reported === "tug" || reported === "commercial") ? "commercial" : "unknown";
-    const category = record && categories.has(record.category) ? record.category : reported === "tug" ? "tug" : "unknown";
+    const category = record && categories.has(record.category) ? record.category : reportedVesselType(vessel);
     return {
         identifiers: ids, military_status: conflicts.length ? "unknown" : status,
         verification_status: conflicts.length ? "conflict" : record ? "verified" : "unverified",

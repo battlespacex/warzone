@@ -565,7 +565,8 @@ function getPriorityScore(record) {
     const classification = record?.classification || {};
     const operationalBoost = /operational|extended|backup|standby/i.test(record?.operationalStatus || "") ? 20 : 0;
     const orbitBoost = /leo|geo/i.test(record?.orbitClass || "") ? 8 : 0;
-    return confidenceRank(classification.confidence) * 100 + operationalBoost + orbitBoost;
+    const stationBoost = classification.association === "space-station" ? 1000 : 0;
+    return stationBoost + confidenceRank(classification.confidence) * 100 + operationalBoost + orbitBoost;
 }
 
 function matchesFilters(record) {

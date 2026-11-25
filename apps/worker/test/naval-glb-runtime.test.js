@@ -92,6 +92,49 @@ function harness() {
         state: vm.runInContext("__navalState", context) };
 }
 
+test("local Hormuz formation renders ten configured entity models independently of live filters", () => {
+    const h = harness(); h.region({id:'elsewhere',bounds:{minLat:40,maxLat:50,minLon:-100,maxLon:-80}});
+    h.context.setNavalLayerVisible(true); h.context.setNavalVisibilityFilter(() => false);
+    const tuner=fs.readFileSync(new URL('../../../dev/assets/js/warzone-formation-tuner.js',import.meta.url),'utf8');
+    Object.assign(h.context,{isLayerEnabled:()=>true,setLayer(){},isLocalDeveloperFeatureEnabled:()=>true});
+    h.window.setInterval=()=>1;h.window.clearInterval=()=>{};h.window.setTimeout=fn=>fn();
+    vm.runInContext(tuner.replace(/^import[\s\S]*?;\r?\n/gm,'').replace(/^export /gm,''),h.context);
+    vm.runInContext('syncPanel=()=>{};activateFormation("hormuz");',h.context);h.drain();
+    assert.equal(h.context.focusFormation('hormuz'),true);
+    const models=h.viewer.entities.values.filter(entity=>entity.model);
+    assert.equal(models.length,10);
+    for(const entity of models){
+        assert.equal(entity.show,true);assert.ok(entity.model instanceof Cesium.ModelGraphics);
+        const data=entity.__navalData;
+        assert.equal(data.verification_status,'simulated');
+        assert.ok(h.context.resolveNavalModelUri(data).includes(data.metadata.model_code));
+        assert.ok(Math.abs(Cesium.Cartographic.fromCartesian(entity.position.getValue()).height)<.01);
+    }
+    assert.equal(new Set(models.map(e=>JSON.stringify(e.position.getValue()))).size,10);
+    assert.equal(h.context.getAllNavalSnapshots().length,0);
+    h.add(501,56.9,25.8);h.drain();assert.equal(h.state.vessels.get('ais-501').entity,null);
+    h.context.activateFormation('hormuz');h.drain();assert.equal(h.viewer.entities.values.filter(e=>e.model).length,10);
+    const runtime=vm.runInContext('getRuntimeState("hormuz")',h.context);
+    runtime.speedPercent=150;runtime.targetSpacingPercent=200;runtime.spacingPercent=200;
+    const before=JSON.stringify(models.map(e=>e.position.getValue()));h.context.tickFormations();h.drain();
+    assert.notEqual(JSON.stringify(models.map(e=>e.position.getValue())),before);
+    h.context.focusFormation('hormuz');assert.ok(h.flights.at(-1).offset.range>=52000);
+    h.context.clearFormation('hormuz');h.drain();assert.equal(h.viewer.entities.values.filter(e=>e.model).length,0);
+    assert.equal(h.animations.size,0);
+    h.context.activateFormation('hormuz');h.drain();assert.equal(h.viewer.entities.values.filter(e=>e.model).length,10);
+    h.context.clearFormation('hormuz');h.drain();
+});
+
+test("reported type survives unverified affiliation and position-only updates", () => {
+    const h=harness();h.context.setNavalLayerVisible(true);h.add(601,50,30,{ship_type:'Patrol vessel'});h.drain();
+    let data=h.state.vessels.get('ais-601').data;
+    assert.equal(data.subcategory,'patrol');assert.equal(data.military_status,'unknown');
+    assert.equal(data.verification_status,'unverified');assert.equal(data.operator,'');
+    h.context.upsertNavalVessel({dedupe_key:'ais-601',lat:30,lon:50,source_name:'AIS fixture',occurred_at:'2026-11-10T12:00:01Z',metadata:{mmsi:data.mmsi,vessel_name:'CG 123'}});
+    data=h.state.vessels.get('ais-601').data;assert.equal(data.subcategory,'patrol');
+    assert.equal(data.military_status,'unknown');assert.equal(h.context.resolveNavalAssetKey(data),'Neutral');
+});
+
 test("every eligible overview and focused contact has ModelGraphics without an omission budget", () => {
     const h = harness(); h.context.setNavalLayerVisible(true);
     for (let i = 0; i < 12; i++) h.add(i);

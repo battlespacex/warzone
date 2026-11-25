@@ -61,12 +61,13 @@ test("validated turns bank in opposite directions with subtype limits; straight 
     resolveTrackSubtype: (track) => track.subtype,
     getTrackSourceTimestamp: (track) => track.ts,
     getTrackMetadata: () => ({}),
+    isLocalAirPatrolTrack: () => false,
     getTrackDerivedBearing: () => null,
     clamp: (value, min, max) => Math.max(min, Math.min(max, value)),
   });
   vm.runInContext(section("getTrackVisualState", "removeLiveTrackTrailRenderState"), context);
   const sample = (heading, ts, subtype = "fighter") => context.getTrackAttitude(
-    { track_key: "a", speed_kts: 300, ts, subtype }, heading
+    { track_key: "a", speed_kts: 300, ts: 1_700_000_000_000 + ts, subtype }, heading
   ).rollDeg;
   assert.equal(sample(0, 1000), 0);
   const right = sample(15, 6000);

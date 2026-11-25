@@ -1074,6 +1074,7 @@ function resolveNavalCountryDefaultAssetKey(context = {}) {
     return match?.assetKey || "";
 }
 function resolveNavalAssetKey(vessel = {}) {
+    if (vessel.__localNavalFormation === true) return normalizeNavalAssetKey(vessel.metadata?.model_code) || NAVAL_MODEL_DEFAULT_ASSET_KEY;
     return selectVerifiedNavalModel(resolveNavalIdentity(vessel)) || NAVAL_MODEL_DEFAULT_ASSET_KEY;
 }
 function resolveLiveNavalIconCode(vessel = {}) {
@@ -1206,6 +1207,7 @@ function getCssText(varName, fallback = "") {
     return value || fallback;
 }
 function isNavalInSelectedRegion(vessel = {}) {
+    if (vessel.__localNavalFormation === true) return isValidCoordinatePair(parseCoordinate(vessel.lat), parseCoordinate(vessel.lon));
     const region = getActiveRegion?.();
     if (!region) return false;
     const lat = parseCoordinate(vessel.lat);
@@ -2905,6 +2907,11 @@ function getNavalWidgetCountryOperatorLabel(vessel = {}) {
     return resolveNavalIdentity(vessel).naval_force || "Unverified affiliation";
 }
 function applyResolvedNavalIdentity(vessel) {
+    if (vessel.__localNavalFormation === true) {
+        vessel.verification_status = "simulated";
+        vessel.military_status = "unknown";
+        return vessel;
+    }
     const identity = resolveNavalIdentity(vessel);
     vessel.naval_identity = identity;
     vessel.verification_status = identity.verification_status;
@@ -2936,6 +2943,9 @@ function mergeNavalVesselData(existing = {}, incoming = {}) {
     merged.platform_name = keepFirstText(incoming.platform_name, existing.platform_name);
     merged.vessel_name = keepFirstText(incoming.vessel_name, existing.vessel_name);
     merged.type_label = keepFirstText(incoming.type_label, existing.type_label);
+    for (const field of ["ship_type", "ship_type_code", "ship_type_name", "vessel_type"]) {
+        if (incoming[field] == null || incoming[field] === "") merged[field] = existing[field];
+    }
     merged.class_name = keepFirstText(incoming.class_name, existing.class_name);
     merged.subclass_name = keepFirstText(incoming.subclass_name, existing.subclass_name);
     merged.variant_name = keepFirstText(incoming.variant_name, existing.variant_name);
@@ -3266,7 +3276,7 @@ function unbindNavalRuntime(viewer) {
 }
 
 // ─── Public: upsert vessel (called from essential.js event handler) ───────────
-export function upsertNavalVessel(event) {
+export function upsertNavalVessel(event, { localFormation = false } = {}) {
     const viewer = window.__warzoneViewer;
     if (
         isProbablyAircraftContact(event) ||
@@ -3381,6 +3391,11 @@ export function upsertNavalVessel(event) {
     ]));
     const lastSeenAt = resolveNavalLastSeenAt(event, metadata);
     const vessel = {
+        __localNavalFormation: localFormation === true,
+        ship_type: event.ship_type ?? metadata.ship_type ?? event.shipType ?? metadata.shipType,
+        ship_type_code: event.ship_type_code ?? metadata.ship_type_code,
+        ship_type_name: event.ship_type_name ?? metadata.ship_type_name ?? metadata.shipTypeName,
+        vessel_type: event.vessel_type ?? metadata.vessel_type ?? metadata.vesselType,
         track_key: trackKey,
         platform_name: vesselName,
         vessel_name: vesselName,
@@ -3523,6 +3538,7 @@ export function getAllNavalSnapshots() {
     purgeInvalidNavalContacts();
     return [...__navalState.vessels.values()]
         .map(v => v.data)
+        .filter(v => v.__localNavalFormation !== true)
         .sort((a, b) => {
             const seenDiff = Number(b.last_seen_at || 0) - Number(a.last_seen_at || 0);
             if (seenDiff !== 0) return seenDiff;
@@ -3569,6 +3585,7 @@ export function setNavalLayerVisible(visible = true) {
 }
 
 function matchesNavalVisibilityFilter(trackKey = "", vessel = {}) {
+    if (vessel.__localNavalFormation === true) return isNavalInSelectedRegion(vessel);
     if (!isNavalInSelectedRegion(vessel)) return false;
     if (typeof __navalState.visibilityFilter !== "function") return true;
     try {

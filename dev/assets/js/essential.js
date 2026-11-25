@@ -3306,6 +3306,7 @@ function normalizeNavalSubtype(value = "") {
 }
 function formatNavalSubtypeLabel(subtype = "") {
     const key = normalizeNavalSubtype(subtype);
+    if (key === "naval") return "Unknown / unclassified";
     if (!key) return "Naval";
     if (key === "ssbn") return "SSBN";
     if (key === "ssn") return "SSN";
@@ -3405,7 +3406,8 @@ document.addEventListener("wz:dev-high-value-aircraft-demo", (event) => {
 });
 function getNavalSubtypeOptions(items = []) {
     return [...new Set(items.map(item => normalizeNavalSubtype(item.subcategory)))]
-        .filter(value => value !== "naval" && NAVAL_EVENT_SUBTYPES.has(value))
+        .filter(value => value === "naval" || NAVAL_EVENT_SUBTYPES.has(value)
+            || ["cargo", "tanker", "passenger", "fishing", "search_and_rescue", "law_enforcement", "pilot", "other", "tug"].includes(value))
         .sort((a, b) => formatNavalSubtypeLabel(a).localeCompare(formatNavalSubtypeLabel(b)));
 }
 function syncTrackerSubtypeOptions(select, options, selectedValue, formatLabel) {

@@ -98,6 +98,23 @@ function harness(code = source) {
   return { context, state, counts, resetCounts, angles, tasks, timers, frames, flush };
 }
 
+test("the two station records use existing layer entities, labels and ON/OFF lifecycle without duplicates", () => {
+  const h = harness(), base = h.state.records[0];
+  const stations = [['25544','International Space Station (ISS)'],['48274','Chinese Space Station (Tiangong)']].map(([id,name])=>({
+    ...base,id:'sat-'+id,noradId:id,name,omm:{...base.omm,NORAD_CAT_ID:Number(id)},
+    classification:{...base.classification,association:'space-station',associationLabel:'Space Station',mission:'space-station',missionLabel:'Space Station'}
+  }));
+  h.state.records = [...h.state.records,...stations];h.context.setWarzoneMilSatsEnabled(true);
+  for(const record of stations){
+    const entity=h.state.entities.get(record.id)?.point;assert.ok(entity?.model);assert.equal(entity.__wzOrbitalId,record.id);
+    assert.equal(entity.label.text.getValue(),record.name.toUpperCase());
+    assert.ok(h.context.propagateRecord(record,new Date())?.position);
+  }
+  const count=h.state.entities.size;for(let i=0;i<5;i++)h.context.setWarzoneMilSatsEnabled(true);assert.equal(h.state.entities.size,count);
+  h.context.setWarzoneMilSatsEnabled(false);assert.equal(h.state.entities.size,0);
+  h.context.setWarzoneMilSatsEnabled(true);for(const record of stations)assert.ok(h.state.entities.has(record.id));
+});
+
 test("repeated orbital ON synchronization retains every model and sampled property", () => {
   const h = harness(); h.context.setWarzoneMilSatsEnabled(true);
   assert.equal(h.state.entities.size, 45);

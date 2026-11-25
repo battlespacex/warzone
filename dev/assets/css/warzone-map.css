@@ -580,6 +580,10 @@ UNUSED CANDIDATE END */
     list-style: none;
 }
 
+.wz-widget-data-list[hidden] {
+    display: none !important;
+}
+
 .wz-widget-data-list li {
     display: grid;
     grid-template-columns: 40% 1fr;

@@ -12,11 +12,13 @@ import {createPlaneAlertMilitaryDatabase} from '../src/tracking/aircraft/provide
 import {mergeAircraftObservations} from '../src/tracking/merge.js';
 
 const source=fs.readFileSync(new URL('../../../dev/assets/js/warzone-notices.js',import.meta.url),'utf8');
+const stylesheet=fs.readFileSync(new URL('../../../dev/assets/css/root.css',import.meta.url),'utf8');
+const styleDefaults=new Map([...stylesheet.matchAll(/(--wz-(?:notam|notice)-[\w-]+):\s*([^;]+);/g)].map(match=>[match[1],match[2].trim()]));
 function harness(fetchImpl){
     const enabled=new Set(),layerListeners=new Set(),regionListeners=new Set(),timers=new Map(),frames=new Map(),events=new Map(),sources=[],panels=[],handlers=[];let seq=0,flights=0;
     const focus={assetId:''};
     class Element{constructor(tag){this.tag=tag;this.children=[];this.style={};this.selectors=new Map();}set innerHTML(value){this.children=[];this.selectors.clear();}setAttribute(){}getContext(){return this.context||=( {fillRect(){this.fill=this.fillStyle;},beginPath(){},moveTo(){},lineTo(){},stroke(){}} );}append(...children){this.children.push(...children);}remove(){const index=panels.indexOf(this);if(index>=0)panels.splice(index,1);}querySelector(selector){if(selector==='.wz-notice-controls'){const body=this.selectors.get('.wz-widget-body')||this,controls=body.children.find(el=>el.className==='wz-notice-controls');if(controls)return controls;}if(!this.selectors.has(selector))this.selectors.set(selector,new Element(selector));return this.selectors.get(selector);}}
-    class Handler{constructor(){handlers.push(this);}setInputAction(fn){this.click=fn;}destroy(){const index=handlers.indexOf(this);if(index>=0)handlers.splice(index,1);}}
+    class Handler{constructor(){handlers.push(this);}setInputAction(fn,type){if(type===1)this.hover=fn;else this.click=fn;}destroy(){const index=handlers.indexOf(this);if(index>=0)handlers.splice(index,1);}}
     const restores=[];
     const viewer={camera:{positionWC:new Cartesian3(7e6,1,2),directionWC:new Cartesian3(-1,0,0),upWC:new Cartesian3(0,0,1),cancelFlight(){},flyToBoundingSphere(){flights++;},flyTo(view){restores.push(view);}},dataSources:{async add(s){sources.push(s);return s;},remove(s){const index=sources.indexOf(s);if(index>=0)sources.splice(index,1);}},scene:{canvas:{},requestRender(){},pick:()=>({id:sources[0]?.entities.values[0]})},flyTo(){flights++;}};
     const context=vm.createContext({Cesium:{...RealCesium,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
@@ -27,10 +29,18 @@ function harness(fetchImpl){
         setTimeout(fn,delay){fn.delay=delay;timers.set(++seq,fn);return seq;},clearTimeout:id=>timers.delete(id),requestAnimationFrame(fn){frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
         performance,URLSearchParams,AbortController,fetch:fetchImpl});
     installNoticeTemplates(context);
+    let customStyle = null;
+    Object.defineProperty(context,'getComputedStyle',{ configurable:true,
+        set(value){customStyle=value;}, get(){return element=>{
+            const custom=customStyle?.(element);
+            const resolve=name=>{const value=custom?.getPropertyValue(name)||styleDefaults.get(name)||'';
+                return value.replace(/var\((--[\w-]+)\)/g,(_all,key)=>resolve(key));};
+            return {getPropertyValue:resolve};
+        };} });
  vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/\bexport /g,''),context);
     return {context,enabled,viewer,sources,get panels(){return panels.filter(el=>el.style.opacity!=='0');},handlers,timers,frames,events,focus,restores,layerListeners,regionListeners,get flights(){return flights;},sync(){for(const fn of layerListeners)fn('*');},tick(){const current=[...timers];timers.clear();for(const [,fn]of current)fn();},async settle(){await new Promise(resolve=>setImmediate(resolve));while(frames.size){const current=[...frames];frames.clear();for(const [,fn]of current)fn();}}};
 }
-function openMore(h){h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.textContent==='MORE').onclick();}
+function openMore(h){h.panels[0].querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions').children.find(el=>el.getAttribute('data-action')==='more').onclick();}
 
 test('templates keep provider markup as literal text across cards, preview and full provenance',async()=>{
     const attack='<img src=x onerror="alert(1)"><script>bad()</script>';
@@ -177,9 +187,9 @@ test('NOTAM polygons preserve source rings and CSS line width; Q-line radius def
     const polygon=h.sources[0].entities.getById(n.id),marker=h.sources[0].entities.getById(point.id);
     assert.equal(polygon.polyline.width.getValue(),4);assert.equal(polygon.polygon.hierarchy.getValue().positions.length,4);
     assert.equal(polygon.polygon.height,undefined,'published area uses the terrain-clamped Entity path');assert.equal(polygon.polyline.clampToGround.getValue(),true);
-    assert.match(polygon.polygon.material.image.getValue().context.fill,/0\.12\)/);assert.ok(marker.point);assert.equal(marker.ellipse,undefined);
+    assert.match(polygon.polygon.material.image.getValue().context.fill,/0\.12\)/);assert.ok(marker.billboard);assert.equal(marker.point,undefined);assert.equal(marker.ellipse,undefined);
     css.set('--wz-notice-line-width','3');css.set('--wz-notice-marker-size','14');h.events.get('wz:notice-style-refresh')();
-    assert.equal(h.sources[0].entities.getById(n.id),polygon);assert.equal(polygon.polyline.width.getValue(),3);assert.equal(marker.point.pixelSize.getValue(),14);
+    assert.equal(h.sources[0].entities.getById(n.id),polygon);assert.equal(polygon.polyline.width.getValue(),3);assert.equal(marker.billboard.width.getValue(),14);
     h.context.disposeNoticeLayers();assert.equal(h.events.size,0);
 });
 test('notice popup persists outside and on Escape; releases owned handlers',async()=>{
@@ -262,7 +272,7 @@ test('camera settlement never auto-selects; explicit preview persists and Take S
  const firePreview=()=>{for(const [id,fn]of [...h.timers])if(fn.delay===180){h.timers.delete(id);fn();}};
  moving.raiseEvent();firePreview();assert.notEqual(h.panels[0].className,'wz-notice-popup wz-notice-preview');settled.raiseEvent();firePreview();assert.notEqual(h.panels[0].className,'wz-notice-popup wz-notice-preview');h.handlers[0].click({position:{x:400,y:300}});assert.match(h.panels[0].className,/wz-notice-preview/);
  const panel=h.panels[0];moving.raiseEvent();assert.notEqual(panel.style.display,'none');settled.raiseEvent();firePreview();assert.equal(h.panels[0],panel);assert.notEqual(panel.style.display,'none');
- const actions=panel.querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions');assert.ok(actions.children.some(el=>el.textContent==='MORE'));actions.children.find(el=>el.textContent==='TAKE SHOT').onclick();await new Promise(resolve=>setImmediate(resolve));assert.equal(captures,1);
+ const actions=panel.querySelector('.wz-widget-body').children.find(el=>el.className==='wz-notice-actions');assert.ok(actions.children.some(el=>el.getAttribute('data-action')==='more'));actions.children.find(el=>el.getAttribute('data-action')==='shot').onclick();await new Promise(resolve=>setImmediate(resolve));assert.equal(captures,1);
  h.enabled.clear();h.sync();assert.equal(cancelled,1);h.context.disposeNoticeLayers();assert.equal(moving.numberOfListeners,0);assert.equal(settled.numberOfListeners,0);assert.equal(h.timers.size,0);
 });
 test('local expiry removes expired geometry without fetching or resurrecting multipart notices',async()=>{
@@ -281,12 +291,105 @@ function anchoredHarness(fetchImpl){
  h.context.Cesium.SceneTransforms={worldToWindowCoordinates:()=>point};h.context.Cesium.EllipsoidalOccluder=class{isPointVisible(){return visible;}};
  return Object.assign(h,{render,setPoint(p){point=p;},hideAnchor(){visible=false;},position(){const popup=h.panels[0];popup.offsetWidth=300;popup.offsetHeight=200;popup.getBoundingClientRect=()=>{const left=parseFloat(popup.style.left),top=parseFloat(popup.style.top);return {left,top,right:left+300,bottom:top+200,width:300,height:200};};render.raiseEvent();render.raiseEvent();return popup;}});
 }
+
+test('NOTAM preview placement prefers left, falls back right, avoids panels and clamps small viewports',()=>{
+ const h=harness(async()=>({ok:true,json:async()=>({notices:[]})})),place=h.context.placeNoticePreview;
+ const bounds={left:11,top:11,right:1589,bottom:989};
+ assert.deepEqual(JSON.parse(JSON.stringify(place(800,500,300,200,bounds,55))),{left:445,top:400});
+ assert.equal(place(100,500,300,200,bounds,55).left,155);
+ const panel={left:400,right:760,top:100,bottom:900};
+ const result=place(800,500,300,200,bounds,55,[panel]);assert.equal(result.left,855);
+ const small=place(100,80,280,220,{left:11,top:11,right:309,bottom:249},55);
+ assert.ok(small.left>=11&&small.left+280<=309&&small.top>=11&&small.top+220<=249);
+});
+
+test('MORE and return to preview share a side and right-edge anchor through repeated expansion',async()=>{
+ const h=anchoredHarness(async()=>({ok:true,json:async()=>({notices:[n]})}));
+ h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+ h.setPoint({x:900,y:400});h.handlers[0].click({position:{x:900,y:400}});const popup=h.position();
+ for(let i=0;i<5;i++){
+  const right=parseFloat(popup.style.left)+popup.offsetWidth,top=popup.style.top;
+  popup.offsetWidth=500;popup.offsetHeight=400;openMore(h);h.render.raiseEvent();
+  assert.equal(parseFloat(popup.style.left)+500,right);assert.equal(popup.style.top,top);
+  assert.equal(h.panels[0],popup);assert.equal(h.render.numberOfListeners,1);
+  popup.offsetWidth=300;popup.offsetHeight=200;h.handlers[0].click({position:{x:900,y:400}});h.render.raiseEvent();
+  assert.equal(parseFloat(popup.style.left)+300,right);
+ }
+ popup.querySelector('[data-action="close"]').onclick();assert.equal(h.render.numberOfListeners,0);h.context.disposeNoticeLayers();
+});
+
+test('CSS controls actual billboard dimensions, independent colors, geometry and live style refresh',async()=>{
+ const rows=[{...n,id:'normal',geometry:{type:'Point',coordinates:[65,24]}},{...n,id:'critical',geometry:{type:'Point',coordinates:[66,24]},metadata:{severity:'critical'}}];
+ const h=harness(async()=>({ok:true,json:async()=>({notices:rows})}));const css=new Map();let observer,disconnected=0;
+ h.context.getComputedStyle=()=>({getPropertyValue:name=>css.get(name)||''});
+ h.context.MutationObserver=class{constructor(fn){this.callback=fn;observer=this;}observe(){}disconnect(){disconnected++;}};
+ h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+ const normal=h.sources[0].entities.getById('normal'),critical=h.sources[0].entities.getById('critical');
+ const image=entity=>decodeURIComponent(entity.billboard.image.getValue().split(',')[1]);
+ assert.equal(normal.billboard.width.getValue(),12);assert.equal(normal.billboard.height.getValue(),12);
+ assert.notEqual(image(normal),image(critical),'status colors remain distinct without an override');
+ for(const [key,value]of Object.entries({'marker-width':'24px','marker-height':'16px','marker-border-width':'3px',
+  'marker-radius':'5px','marker-background':'#123456','marker-color':'#abcdef','popup-gap':'80px'}))css.set('--wz-notam-'+key,value);
+ for(let i=0;i<20;i++)observer.callback();assert.equal(h.frames.size,1);await h.settle();assert.equal(h.frames.size,0);
+ assert.equal(h.sources[0].entities.getById('normal'),normal);assert.equal(normal.billboard.width.getValue(),24);assert.equal(normal.billboard.height.getValue(),16);
+ assert.match(image(normal),/viewBox="0 0 24 16"/);assert.match(image(normal),/rx="5"/);assert.match(image(normal),/stroke-width="3"/);
+ assert.match(image(normal),/fill="rgb\(18,52,86\)"/);assert.match(image(normal),/stroke="rgb\(171,205,239\)"/);
+ assert.equal(image(normal),image(critical),'an explicit color override applies to both');
+ css.delete('--wz-notam-marker-color');observer.callback();await h.settle();assert.notEqual(image(normal),image(critical));
+ const componentCss=fs.readFileSync(new URL('../../../dev/assets/css/warzone-components.css',import.meta.url),'utf8');
+ assert.match(componentCss,/opacity:\s*var\(--wz-notam-connector-opacity\)/);assert.match(componentCss,/stroke-width:\s*var\(--wz-notam-connector-width\)/);
+ h.context.disposeNoticeLayers();assert.equal(disconnected,1);assert.equal(h.frames.size,0);
+});
+
+test('NOTAM hover coalesces pointer events and preserves selected scale without a continuous loop',async()=>{
+ const h=harness(async()=>({ok:true,json:async()=>({notices:[{...n,geometry:{type:'Point',coordinates:[65,24]}}]})}));
+ h.context.Cesium.ScreenSpaceEventType.MOUSE_MOVE=1;h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+ const marker=h.sources[0].entities.getById(n.id);
+ for(let i=0;i<50;i++)h.handlers[0].hover({endPosition:{x:i,y:50}});
+ assert.equal(h.frames.size,1);await h.settle();assert.equal(h.frames.size,0);assert.equal(marker.billboard.scale.getValue(),1.08);
+ h.handlers[0].click({position:{}});assert.equal(marker.billboard.scale.getValue(),1.15);
+ h.viewer.scene.pick=()=>undefined;h.handlers[0].hover({endPosition:{x:0,y:0}});await h.settle();assert.equal(marker.billboard.scale.getValue(),1.15);
+ h.handlers[0].hover({endPosition:{x:1,y:1}});h.context.disposeNoticeLayers();assert.equal(h.frames.size,0);
+});
+
+test('unchanged camera skips popup layout while ResizeObserver invalidates it and disconnects on close',async()=>{
+ const h=anchoredHarness(async()=>({ok:true,json:async()=>({notices:[n]})}));let observer,disconnected=0;
+ h.context.ResizeObserver=class{constructor(callback){this.callback=callback;observer=this;}observe(){}disconnect(){disconnected++;}};
+ h.viewer.camera.viewMatrix=RealCesium.Matrix4.clone(RealCesium.Matrix4.IDENTITY);
+ h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();h.handlers[0].click({position:{x:400,y:300}});
+ const popup=h.position();let reads=0;const rect=popup.getBoundingClientRect;popup.getBoundingClientRect=()=>{reads++;return rect();};
+ for(let i=0;i<20;i++)h.render.raiseEvent();assert.equal(reads,0);
+ observer.callback();popup.offsetHeight=250;h.render.raiseEvent();assert.equal(popup.style.top,'190px');
+ popup.querySelector('[data-action="close"]').onclick();assert.equal(disconnected,1);assert.equal(h.render.numberOfListeners,0);h.context.disposeNoticeLayers();
+});
+
+test('selected NOTAM connector follows its projected anchor, fades toward preview, reuses one SVG and cleans up',async()=>{
+ const h=anchoredHarness(async()=>({ok:true,json:async()=>({notices:[{...n,geometry:{type:'Point',coordinates:[65,24]}}]})}));
+ const css=new Map([['--wz-notam-connector-color','#00ff00']]);h.context.getComputedStyle=()=>({getPropertyValue:key=>css.get(key)||''});
+ h.context.document.createElementNS=(_ns,tag)=>{const el=h.context.document.createElement(tag);el.classList={add:name=>{el.className=name;}};return el;};
+ h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer);await h.settle();
+ h.handlers[0].click({position:{x:400,y:300}});const popup=h.position();
+ const svg=h.panels.find(el=>el.className==='wz-notice-preview-leader'),line=svg.querySelector('line');
+ assert.ok(svg);assert.equal(line.getAttribute('x1'),'400');assert.equal(line.getAttribute('y1'),'300');
+ assert.equal(svg.style.color,'rgb(0,255,0)');
+ assert.equal(line.getAttribute('x2'),String(parseFloat(popup.style.left)+300));
+ assert.deepEqual(svg.querySelectorAll('stop').map(stop=>stop.getAttribute('offset')),['0%','75%','100%']);
+ assert.equal(svg.getAttribute('aria-hidden'),'true');
+ const marker=h.sources[0].entities.getById(n.id);assert.equal(marker.point,undefined);assert.equal(marker.billboard.scale.getValue(),1.15);
+ const image=decodeURIComponent(marker.billboard.image.getValue().split(',')[1]);assert.match(image,/<rect /);assert.match(image,/fill="rgba\(0,0,0,0\)"/);assert.match(image,/rx="2"/);
+ h.setPoint({x:700,y:450});h.render.raiseEvent();assert.equal(line.getAttribute('x1'),'700');assert.equal(line.getAttribute('y1'),'450');
+ css.set('--wz-notam-connector-color','#ff0000');css.set('--wz-notam-popup-gap','80px');h.events.get('wz:notice-style-refresh')();h.render.raiseEvent();
+ assert.equal(svg.style.color,'rgb(255,0,0)');assert.equal(popup.style.left,'320px');
+ assert.equal(h.panels.filter(el=>el.className==='wz-notice-preview-leader').length,1);
+ popup.querySelector('[data-action="close"]').onclick();assert.equal(h.panels.includes(svg),false);assert.equal(h.render.numberOfListeners,0);
+ assert.equal(marker.billboard.scale.getValue(),1);h.context.disposeNoticeLayers();
+});
 test('anchored selection retains the main DOM, binds no popup drag, follows camera and closes at every edge',async()=>{
  for(const point of [{x:-10,y:300},{x:1600,y:300},{x:400,y:-20},{x:400,y:1000},null]){
   let binds=0;const h=anchoredHarness(async()=>({ok:true,json:async()=>({notices:[n]})}));h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{bindFloatingPanel:()=>{binds++;}});await h.settle();
   const main=h.panels[0],before=binds;main.querySelector('.wz-widget-body').scrollTop=123;h.handlers[0].click({position:{x:400,y:300}});const popup=h.position();
   assert.equal(binds,before);assert.equal(main.style.opacity,'0');assert.equal(popup.id,'warzone-notice-popup');assert.equal(popup.querySelector('[data-action="collapse"]'),null);assert.ok(popup.querySelector('[data-action="close"]'));assert.equal(h.render.numberOfListeners,1);
-  h.setPoint({x:500,y:400});h.render.raiseEvent();assert.equal(popup.style.left,'516px');assert.equal(popup.style.top,'382px');assert.equal(h.panels[0],popup);
+  h.setPoint({x:500,y:400});h.render.raiseEvent();assert.equal(popup.style.left,'145px');assert.equal(popup.style.top,'290px');assert.equal(h.panels[0],popup);
   if(point)h.setPoint(point);else h.hideAnchor();h.render.raiseEvent();assert.equal(h.panels[0],main);assert.equal(main.querySelector('.wz-widget-body').scrollTop,123);assert.equal(h.render.numberOfListeners,0);
   h.context.disposeNoticeLayers();assert.equal(h.panels.length,0);
  }

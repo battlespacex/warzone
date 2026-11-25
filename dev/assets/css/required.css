@@ -372,6 +372,14 @@ button label {
     clip-path: var(--clippath-shape-4);
 }
 
+.wz-notice-popup .btn-primary, .wz-notice-popup .btn-secondary,
+.wz-widget-milbase .btn-primary, .wz-widget-milbase .btn-secondary,
+.warzone-panel--floating .btn-primary, .warzone-panel--floating .btn-secondary {
+    font-size: var(--text-sm) !important;
+    height: 2.8rem;
+    min-width: 6rem !important;
+}
+
 
 .btn-primary:before,
 .btn-primary:after,

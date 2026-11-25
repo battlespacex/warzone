@@ -375,6 +375,11 @@ function findPickedMilitaryBase(viewer, screenPosition) {
 function positionBasePanel(panel, sx, sy) {
     if (!panel || !Number.isFinite(sx) || !Number.isFinite(sy)) return;
 
+    panel.style.minWidth = '0';
+    panel.style.maxWidth = `${Math.max(0, window.innerWidth - 16)}px`;
+    panel.style.maxHeight = `${Math.max(0, window.innerHeight - 16)}px`;
+    panel.style.overflowY = 'auto';
+
     const rect = panel.getBoundingClientRect();
     const W = rect.width || 448;
     const H = rect.height || 240;
@@ -426,16 +431,29 @@ function getEntityScreenPosition(entity) {
 function updateActiveBasePanelPosition() {
     const active = __state.activePanel;
     if (!active?.panel?.isConnected) {
-        __state.activePanel = null;
+        if (active) closeActiveBasePanel();
         return;
     }
-
-    const screen = getEntityScreenPosition(active.entity);
-    if (!screen || !isScreenPointInViewport(screen)) {
-        closeActiveBasePanel();
-        return;
+    const viewer = __state.viewer, camera = viewer?.camera, scene = viewer?.scene;
+    if (!scene) return;
+    const measure = [active.panel.offsetWidth, active.panel.offsetHeight, window.innerWidth, window.innerHeight].join('|');
+    if (camera?.viewMatrix && active.view && Cesium.Matrix4.equals(camera.viewMatrix, active.view) && measure === active.measure) return;
+    active.view = camera?.viewMatrix ? Cesium.Matrix4.clone(camera.viewMatrix) : null; active.measure = measure;
+    const project = Cesium.SceneTransforms.worldToWindowCoordinates || Cesium.SceneTransforms.wgs84ToWindowCoordinates;
+    const projected = active.world ? project?.(scene, active.world) : getEntityScreenPosition(active.entity);
+    const rect = scene.canvas.getBoundingClientRect?.() || { left: 0, top: 0 };
+    let screen = projected && Number.isFinite(projected.x) && Number.isFinite(projected.y)
+        ? { x: projected.x + rect.left, y: projected.y + rect.top } : null;
+    const visible = screen && isScreenPointInViewport(screen) && (!active.world || !camera?.positionWC ||
+        new Cesium.EllipsoidalOccluder(Cesium.Ellipsoid.WGS84, camera.positionWC).isPointVisible(active.world));
+    if (visible) active.lastScreen = screen;
+    else {
+        screen = screen || active.lastScreen || { x: window.innerWidth, y: window.innerHeight / 2 };
+        screen = { x: Math.max(0, Math.min(window.innerWidth, screen.x)), y: Math.max(0, Math.min(window.innerHeight, screen.y)) };
+        const edges = [{ distance: screen.x, x: 0, y: screen.y }, { distance: window.innerWidth - screen.x, x: window.innerWidth, y: screen.y },
+            { distance: screen.y, x: screen.x, y: 0 }, { distance: window.innerHeight - screen.y, x: screen.x, y: window.innerHeight }];
+        screen = edges.sort((a, b) => a.distance - b.distance)[0];
     }
-
     positionBasePanel(active.panel, screen.x, screen.y);
     setBasePanelVisible(active.panel, true);
 }
@@ -608,7 +626,8 @@ function showBasePanel(base, sx, sy, entity = null) {
 
     document.body.appendChild(panel);
 
-    __state.activePanel = { panel, entity };
+    __state.activePanel = { panel, entity, baseId: displayBase.id || entity?.id,
+        data: displayBase, world: Cesium.Cartesian3.fromDegrees(Number(displayBase.lon), Number(displayBase.lat)), lastScreen: { x: sx, y: sy } };
     updateActiveBasePanelPosition();
     if (!entity) positionBasePanel(panel, sx, sy);
 
@@ -623,7 +642,12 @@ function showBasePanel(base, sx, sy, entity = null) {
 
     document.addEventListener("keydown", escHandler);
     if (__state.activePanel?.panel === panel) {
-        __state.activePanel.cleanup = () => document.removeEventListener("keydown", escHandler);
+        const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+            if (__state.activePanel?.panel !== panel) return;
+            __state.activePanel.view = null; __state.viewer?.scene.requestRender();
+        });
+        observer?.observe(panel);
+        __state.activePanel.cleanup = () => { observer?.disconnect(); document.removeEventListener("keydown", escHandler); };
     }
 
     document.getElementById("milbase-close")?.addEventListener("click", (e) => {
@@ -695,9 +719,6 @@ function bindBaseRuntime(viewer) {
     __state.cameraChangedHandler = () => {
         if (__state.ctrHighlightsVisible) applyCtrHighlightVisibility();
         if (!areMilitaryBasesInteractive() && !__state.activePanel) return;
-        if (__state.activePanel && !__state.baseCameraFlightActive && Date.now() > __state.manualDismissArmedAt) {
-            closeActiveBasePanel();
-        }
         viewer.scene.requestRender();
     };
     viewer.scene.postRender.addEventListener(updateActiveBasePanelPosition);

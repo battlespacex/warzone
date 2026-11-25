@@ -1,0 +1,388 @@
+/* StratOps / Operational Domains
+   Isolated homepage carousel design. Edit the four tokens below to tune it.
+   Keeps the original nine StratOps glyphs, clippath and interaction code. */
+:root {
+  --domain-card-size: clamp(275px, 21vw, 430px);
+  --domain-card-height: clamp(360px, 22vw, 410px);
+  --domain-icon-size: clamp(75px, 5vw, 106px);
+  --domain-card-gap: 14px;
+}
+
+.domain-section .domain-section-kicker {
+  margin: 0 0 19px;
+  color: var(--accent);
+  font: 700 var(--fs-xsmall)/var(--line-height-2) var(--mono-font);
+letter-spacing: 2px;
+}
+
+.domain-section .domain-rail {
+  gap: var(--domain-card-gap);
+  padding-block: 7px 28px;
+}
+
+/* Restrained tactical module, with an edge highlight instead of a glowing box. */
+.domain-section .domain-card {
+  position: relative;
+  flex: 0 0 var(--domain-card-size);
+  min-width: 0;
+  min-height: var(--domain-card-height);
+  padding: clamp(20px, 1.55vw, 32px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  text-align: left;
+  color: var(--heading);
+  border: 1px solid var(--border-color);
+  clip-path: var(--clippath-1);
+  background: linear-gradient(156deg, rgba(31, 40, 53, .35), rgba(15, 18, 25, .96) 55%), var(--bg-alt);
+  box-shadow: none;
+  isolation: isolate;
+  transition: border-color .3s ease, background .3s ease, transform .3s ease, box-shadow .3s ease;
+}
+
+.domain-section .domain-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 65%;
+  background: linear-gradient(90deg, var(--accent), rgba(24,226,219,0));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+
+.domain-section .domain-card:hover,
+.domain-section .domain-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: var(--border-hover-color);
+}
+
+.domain-section .domain-card.is-active {
+  border-color: var(--accent);
+  background: linear-gradient(150deg, rgba(24, 226, 219, .065), transparent 55%),
+              linear-gradient(165deg, #18212a, #0d1118 80%);
+  box-shadow: inset 0 0 28px rgba(24, 226, 219, .035);
+}
+
+.domain-section .domain-card.is-active::after {
+  opacity: 1;
+}
+
+.domain-section .domain-card.is-active::before {
+  border-color: var(--accent);
+}
+
+.domain-section .domain-card .domain-card-top,
+.domain-section .domain-card .domain-card-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.domain-section .domain-card .domain-card-meta {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.domain-section .domain-number,
+.domain-section .domain-card-sequence {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font: 700 var(--fs-xsmall)/var(--line-height-2) var(--mono-font);
+letter-spacing: 2px;
+}
+
+.domain-section .domain-card-sequence {
+  color: #657c88;
+letter-spacing: 2px;
+}
+
+.domain-section .domain-card.is-active .domain-number,
+.domain-section .domain-card.is-active .domain-card-sequence {
+  color: var(--accent);
+}
+
+/* Data grid + radar rings. CSS only, no new image or icon dependency. */
+.domain-section .domain-graphic {
+  position: relative;
+  margin: 17px 0 7px;
+  min-height: clamp(120px, 10vw, 166px);
+  width: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.domain-section .domain-graphic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(128, 181, 196, .08) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(128, 181, 196, .08) 1px, transparent 1px);
+  background-size: 23px 23px;
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, transparent 70%);
+  mask-image: radial-gradient(ellipse at center, #000 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.domain-section .domain-graphic-ring {
+  position: absolute;
+  width: 128px;
+  height: 128px;
+  border: 1px solid rgba(114, 160, 177, .16);
+  border-radius: 50%;
+  pointer-events: none;
+  transition: border-color .3s ease, transform .5s ease;
+}
+
+.domain-section .domain-graphic-ring::before,
+.domain-section .domain-graphic-ring::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  inset: 17px;
+  border: 1px dashed rgba(114, 160, 177, .12);
+}
+
+.domain-section .domain-graphic-ring::after {
+  inset: 42px;
+  border-style: solid;
+}
+
+.domain-section .domain-icon {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  width: auto;
+  height: auto;
+  min-height: 1em;
+  font-size: var(--domain-icon-size);
+  line-height: 1;
+  color: #7cafb8;
+  opacity: .72;
+  text-shadow: none;
+  filter: none;
+  transform: scale(.96);
+  animation: none !important;
+  transition: color .32s ease, opacity .32s ease, transform .4s ease, filter .32s ease;
+}
+
+.domain-section .domain-card:hover .domain-icon,
+.domain-section .domain-card:focus-visible .domain-icon,
+.domain-section .domain-card.is-active .domain-icon {
+  color: var(--accent);
+  opacity: 1;
+  transform: scale(1.035);
+  filter: drop-shadow(0 0 13px rgba(24, 226, 219, .26));
+}
+
+.domain-section .domain-card.is-active .domain-graphic-ring {
+  border-color: rgba(24, 226, 219, .35);
+  transform: scale(1.06);
+}
+
+.domain-section .domain-graphic-scan {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  width: min(145px, 72%);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(24,226,219,.65), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.domain-section .domain-card.is-active .domain-graphic-scan {
+  animation: domain-module-scan 4.2s ease-in-out infinite;
+}
+
+@keyframes domain-module-scan {
+  0%, 10%, 100% { opacity: 0; transform: translateY(-60px); }
+  25% { opacity: .55; }
+  68% { opacity: .4; }
+  85% { opacity: 0; transform: translateY(60px); }
+}
+
+.domain-section .domain-card-copy {
+  margin-top: auto;
+  gap: 10px;
+}
+
+.domain-section .domain-card-copy strong {
+  margin: 0;
+  font: 600 clamp(21px, 1.2vw, 27px)/var(--line-height-2) var(--heading-font);
+letter-spacing: 2px;
+  text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.domain-section .domain-card-description {
+  color: var(--muted);
+  font: 500 clamp(13px, .77vw, 16px)/1.42 var(--body-font);
+  min-height: 2.85em;
+}
+
+.domain-section .domain-card-foot {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 9px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(117, 140, 156, .24);
+  color: #748c97;
+}
+
+.domain-section .domain-card-status::before {
+  content: 'EXPLORE DOMAIN';
+  font: 700 10px/var(--line-height-1) var(--mono-font);
+letter-spacing: 2px;
+}
+
+.domain-section .domain-card.is-active .domain-card-status::before {
+  content: 'SELECTED DOMAIN';
+}
+
+.domain-section .domain-card.is-active .domain-card-foot {
+  border-top-color: rgba(24, 226, 219, .32);
+  color: var(--accent);
+}
+
+.domain-section .domain-card-arrow {
+  font: 500 24px/1 var(--body-font);
+  transition: transform .25s ease;
+}
+
+.domain-section .domain-card:hover .domain-card-arrow {
+  transform: translate(3px, -3px);
+}
+
+/* Attached information bay: matching border and index so it reads as one system. */
+.domain-section .domain-detail {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 45px);
+  align-items: center;
+  padding: clamp(24px, 2.5vw, 39px);
+  border: 1px solid rgba(102, 130, 147, .35);
+  background: linear-gradient(96deg, rgba(24,226,219,.055), transparent 42%), rgba(16, 21, 28, .7);
+  clip-path: var(--clippath-3);
+}
+
+.domain-section .domain-detail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(220px, 45%);
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+  pointer-events: none;
+}
+
+.domain-section .detail-label {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: .08em;
+  margin: 0;
+  font: 600 clamp(37px, 2.7vw, 58px)/var(--line-height-1) var(--heading-font);
+  letter-spacing: 0;
+  color: var(--accent);
+  text-shadow: 0 0 15px rgba(24,226,219,.14);
+  white-space: nowrap;
+}
+
+.domain-section .detail-label span:first-child {
+  color: #729ba6;
+}
+
+.domain-section .domain-detail-kicker {
+  display: block;
+  margin-bottom: 8px;
+  font: 700 10px/var(--line-height-2) var(--mono-font);
+  color: var(--accent);
+letter-spacing: 2px;
+}
+
+.domain-section .detail-main h3 {
+  margin: 0 0 7px;
+  font: 600 clamp(21px, 1.3vw, 28px)/var(--line-height-1) var(--heading-font);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.domain-section .detail-main p {
+  max-width: 84ch;
+  font: 500 clamp(14px, .9vw, 17px)/1.45 var(--body-font);
+  color: var(--muted);
+}
+
+.domain-section .rail-bottom {
+  padding-top: 4px;
+  padding-bottom: 28px;
+}
+
+.domain-section .rail-button {
+  background: rgba(24,226,219,.1);
+  border: 1px solid rgba(24,226,219,.4);
+  color: var(--accent);
+}
+
+.domain-section .rail-button .font-icon {
+  color: var(--accent);
+}
+
+.domain-section .rail-button:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+.domain-section .rail-button:hover:not(:disabled) .font-icon {
+  color: var(--bg);
+}
+
+.domain-section .rail-controls > span {
+  font: 700 12px var(--mono-font);
+}
+
+@media (max-width: 980px) {
+  :root { --domain-card-size: clamp(265px, 42vw, 330px); }
+  .domain-section .domain-graphic { min-height: 146px; }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --domain-card-size: min(84vw, 335px);
+    --domain-card-height: 355px;
+    --domain-icon-size: 78px;
+    --domain-card-gap: 11px;
+  }
+
+  .domain-section .domain-card { padding: 22px; }
+  .domain-section .domain-graphic { min-height: 122px; margin-top: 10px; }
+  .domain-section .domain-graphic-ring { width: 114px; height: 114px; }
+  .domain-section .domain-card-description { min-height: 0; }
+  .domain-section .domain-detail { grid-template-columns: 1fr; gap: 14px; padding: 22px; }
+  .domain-section .detail-label { font-size: 37px; }
+  .domain-section .domain-section-kicker { font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .domain-section .domain-graphic-scan { animation: none !important; opacity: 0 !important; }
+  .domain-section .domain-card,
+  .domain-section .domain-icon,
+  .domain-section .domain-card-arrow,
+  .domain-section .domain-graphic-ring { transition: none !important; }
+  .domain-section .domain-card:hover { transform: none !important; }
+}

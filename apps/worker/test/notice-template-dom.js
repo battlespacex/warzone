@@ -17,6 +17,14 @@ export function installNoticeTemplates(context) {
     };
     function element(tag) {
         const el = create(tag), attrs = {};
+        let textValue = '';
+        Object.defineProperty(el, 'textContent', {
+            get: () => textValue,
+            set(value) { textValue = String(value); if (tag === 'button') el.children = []; },
+        });
+        Object.defineProperty(el, 'childNodes', { get() {
+            return [...el.children, { nodeType: 3, get nodeValue() { return textValue; }, set nodeValue(value) { textValue = value; } }];
+        } });
         const set = el.setAttribute?.bind(el), remove = el.remove?.bind(el), append = el.append.bind(el);
         el.setAttribute = (name, value) => { attrs[name] = String(value); set?.(name, value); };
         el.getAttribute = name => attrs[name] ?? null;
@@ -50,8 +58,8 @@ export function installNoticeTemplates(context) {
                     if (name === 'hidden') el.hidden = true;
                     if (name === 'value') el.value = value;
                 }
-                for (const child of node.children || []) if (child.type === 'tag') el.append(convert(child));
                 el.textContent = (node.children || []).filter(n => n.type === 'text').map(n => n.data).join('').trim();
+                for (const child of node.children || []) if (child.type === 'tag') el.append(convert(child));
                 return el;
             };
             template.content = { firstElementChild: convert(parseDocument(html).children.find(n => n.type === 'tag')) };

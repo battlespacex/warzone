@@ -233,7 +233,7 @@ const FORMATION_PRESETS = Object.freeze({
         location: "Strait of Hormuz",
         domain: "naval",
         speedKts: 18,
-        focusRangeMeters: 52000,
+        focusRangeMeters: 34000,
         start: Object.freeze({ lat: 25.82, lon: 56.92 }),
         end: Object.freeze({ lat: 25.46, lon: 57.82 }),
         headingDeg: 116,
@@ -242,7 +242,7 @@ const FORMATION_PRESETS = Object.freeze({
         members: Object.freeze([
             Object.freeze({
                 id: "carrier-primary",
-                title: "USS Gerald R. Ford Carrier Strike Group",
+                title: "USS Gerald R. Ford (CVN-78)",
                 assetKey: "Carrier-US",
                 subtype: "carrier",
                 hullNumber: "CVN-78",
@@ -254,6 +254,19 @@ const FORMATION_PRESETS = Object.freeze({
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
+                id: "carrier-secondary",
+                title: "USS George H.W. Bush (CVN-77)",
+                assetKey: "Carrier-US",
+                subtype: "carrier",
+                hullNumber: "CVN-77",
+                mmsi: "369990010",
+                callsign: "CVN77",
+                simulated: true,
+                forwardM: -1250,
+                rightM: 550,
+                altitudeOffsetFt: 0
+            }),
+            Object.freeze({
                 id: "destroyer-forward-port",
                 title: "USS Zumwalt Forward Port",
                 assetKey: "Vessel-Zumwalt",
@@ -262,8 +275,8 @@ const FORMATION_PRESETS = Object.freeze({
                 mmsi: "369990002",
                 callsign: "DDG1000",
                 simulated: true,
-                forwardM: 4320,
-                rightM: -2880,
+                forwardM: 2050,
+                rightM: -1700,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
@@ -275,8 +288,8 @@ const FORMATION_PRESETS = Object.freeze({
                 mmsi: "369990003",
                 callsign: "DDG1001",
                 simulated: true,
-                forwardM: 4320,
-                rightM: 2880,
+                forwardM: 2050,
+                rightM: 1700,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
@@ -288,8 +301,8 @@ const FORMATION_PRESETS = Object.freeze({
                 mmsi: "369990004",
                 callsign: "FFG62",
                 simulated: true,
-                forwardM: 480,
-                rightM: -4560,
+                forwardM: 200,
+                rightM: -2650,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
@@ -301,8 +314,8 @@ const FORMATION_PRESETS = Object.freeze({
                 mmsi: "369990005",
                 callsign: "FFG63",
                 simulated: true,
-                forwardM: 480,
-                rightM: 4560,
+                forwardM: 200,
+                rightM: 2650,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
@@ -314,8 +327,8 @@ const FORMATION_PRESETS = Object.freeze({
                 mmsi: "369990006",
                 callsign: "FFG64",
                 simulated: true,
-                forwardM: -3900,
-                rightM: -3120,
+                forwardM: -2050,
+                rightM: -1700,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
@@ -327,50 +340,78 @@ const FORMATION_PRESETS = Object.freeze({
                 mmsi: "369990007",
                 callsign: "FFG65",
                 simulated: true,
-                forwardM: -3900,
-                rightM: 3120,
+                forwardM: -2050,
+                rightM: 1700,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
-                id: "isr-surface",
-                title: "U.S. Navy ISR Surface Support",
-                assetKey: "Vessel-ISR",
-                subtype: "intelligence",
-                hullNumber: "T-AGOS-23",
+                id: "destroyer-aft",
+                title: "U.S. Navy Zumwalt-Class Aft Escort (Simulated)",
+                assetKey: "Vessel-Zumwalt",
+                subtype: "destroyer",
+                hullNumber: "DDG-1002",
                 mmsi: "369990008",
-                callsign: "AGOS23",
+                callsign: "DDG1002",
                 simulated: true,
-                forwardM: 6300,
+                forwardM: -2650,
                 rightM: 0,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
                 id: "ssn-port",
-                title: "U.S. Navy SSN Port Screen",
+                title: "U.S. Navy Nuclear Submarine Forward Port",
                 assetKey: "Submarine-SSN",
                 subtype: "ssn",
                 hullNumber: "SSN-774",
                 mmsi: null,
                 callsign: "SSN774",
                 simulated: true,
-                forwardM: -5700,
-                rightM: -4800,
+                forwardM: 4150,
+                rightM: -1250,
                 altitudeOffsetFt: 0
             }),
             Object.freeze({
                 id: "ssn-starboard",
-                title: "U.S. Navy SSN Starboard Screen",
+                title: "U.S. Navy Nuclear Submarine Forward Starboard",
                 assetKey: "Submarine-SSN",
                 subtype: "ssn",
                 hullNumber: "SSN-775",
                 mmsi: null,
                 callsign: "SSN775",
                 simulated: true,
-                forwardM: -5700,
-                rightM: 4800,
+                forwardM: 4150,
+                rightM: 1250,
                 altitudeOffsetFt: 0
             }),
         ]),
+    }),
+    "hormuz-air-patrol": Object.freeze({
+        label: "Strait of Hormuz Air Patrol",
+        location: "United Arab Emirates / Strait of Hormuz",
+        domain: "air",
+        start: Object.freeze({ lat: 25.08, lon: 56.22 }),
+        headingDeg: 90,
+        anchorAltitudeFt: 22000,
+        speedKts: 320,
+        focusMemberId: "patrol-f16",
+        patrol: Object.freeze({
+            orbitCenter: Object.freeze({ lat: 25.20, lon: 56.75 }),
+            orbitRadiusMeters: 18000,
+            clockwise: true,
+            bankAngleDeg: 60, // Turn limit permits the existing speed/radius slider ranges.
+            headingTransitionDegPerSecond: 3,
+            accelerationMetersPerSecondSquared: 3,
+            radiusChangeMetersPerSecond: 50,
+            country: "United Arab Emirates",
+            operator: "Fictional UAE patrol (LOCAL SIMULATION)",
+            magneticVariationDeg: 2,
+        }),
+        members: Object.freeze([Object.freeze({
+            id: "patrol-f16", title: "Fictional UAE F-16 Air Patrol",
+            assetKey: "Fighter-F16", subtype: "fighter", icaoType: "F16", icao24: "F0A101",
+            callsign: "SIMUAE01", serial: "SIM-UAE-01", simulated: true,
+            forwardM: 0, rightM: 0, altitudeOffsetFt: 0,
+        })]),
     }),
 });
 
@@ -388,7 +429,8 @@ function getTrackKey(formationKey, memberId) {
 function createRuntimeState(formationKey) {
     const preset = FORMATION_PRESETS[formationKey];
     const start = Cesium.Cartographic.fromDegrees(preset.start.lon, preset.start.lat);
-    const end = Cesium.Cartographic.fromDegrees(preset.end.lon, preset.end.lat);
+    const destination = preset.patrol?.orbitCenter || preset.end;
+    const end = Cesium.Cartographic.fromDegrees(destination.lon, destination.lat);
     const geodesic = new Cesium.EllipsoidGeodesic(start, end);
     return {
         active: false,
@@ -509,6 +551,27 @@ function renderFormation(formationKey, timestamp = Date.now()) {
     const preset = FORMATION_PRESETS[formationKey];
     const runtime = getRuntimeState(formationKey);
     if (!preset || !runtime.active) return;
+    if (preset.patrol) {
+        if (!runtime.patrol) initializePatrol(preset, runtime);
+        const motion = runtime.patrol, member = preset.members[0];
+        const track = buildAirTrack(formationKey, preset, member, motion, preset.anchorAltitudeFt, motion.speedMps / KNOT_TO_METERS_PER_SECOND, timestamp);
+        const observed = new Date(timestamp).toISOString();
+        const telemetry = { altitude_ft: preset.anchorAltitudeFt, altitude_geom_ft: preset.anchorAltitudeFt,
+            speed_kts: track.speed_kts, track_deg: motion.headingDeg, true_heading_deg: motion.headingDeg,
+            mag_heading_deg: (motion.headingDeg - preset.patrol.magneticVariationDeg + 360) % 360,
+            baro_rate_fpm: 0, geom_rate_fpm: 0, vertical_rate_fpm: 0,
+            source: "LOCAL SIMULATION", operator: preset.patrol.operator, observed_at: observed };
+        Object.assign(track, telemetry, { source_name: "LOCAL SIMULATION", heading_deg: motion.headingDeg,
+            ground_track_deg: motion.headingDeg, callsign: member.callsign, icao24: member.icao24, registration: member.serial,
+            type_code: member.icaoType, model_name: member.title, country: preset.patrol.country,
+            operator: preset.patrol.operator, occurred_at: observed, simulation_id: track.track_key });
+        Object.assign(track.metadata, telemetry, { telemetry, callsign: member.callsign, country: preset.patrol.country,
+            icao: member.icao24, registration: member.serial,
+            type_code: member.icaoType, simulated: true, simulated_patrol: true, simulation_id: track.track_key });
+        upsertLiveTrack(track);
+        window.__warzoneViewer?.scene?.requestRender?.();
+        return;
+    }
     const anchor = getAnchorPosition(preset, runtime);
     const spacingScale = runtime.spacingPercent / 100;
     const speedKts = preset.speedKts * (runtime.speedPercent / 100);
@@ -539,11 +602,43 @@ function renderFormation(formationKey, timestamp = Date.now()) {
             position,
             speedKts,
             timestamp
-        ));
+        ), { localFormation: true });
     });
     window.__warzoneViewer?.scene?.requestRender?.();
 }
 
+function initializePatrol(preset, runtime) {
+    runtime.patrol = { ...preset.start, headingDeg: preset.headingDeg,
+        speedMps: preset.speedKts * runtime.speedPercent / 100 * KNOT_TO_METERS_PER_SECOND,
+        radiusMeters: preset.patrol.orbitRadiusMeters * runtime.targetSpacingPercent / 100 };
+}
+function advancePatrol(preset, runtime, seconds) {
+    if (!runtime.patrol) initializePatrol(preset, runtime);
+    const state = runtime.patrol, config = preset.patrol;
+    const approach = (value, target, step) => value + Math.max(-step, Math.min(step, target - value));
+    state.speedMps = approach(state.speedMps, preset.speedKts * runtime.speedPercent / 100 * KNOT_TO_METERS_PER_SECOND, config.accelerationMetersPerSecondSquared * seconds);
+    state.radiusMeters = approach(state.radiusMeters, config.orbitRadiusMeters * runtime.targetSpacingPercent / 100, config.radiusChangeMetersPerSecond * seconds);
+    runtime.spacingPercent = state.radiusMeters / config.orbitRadiusMeters * 100;
+    const center = Cesium.Cartographic.fromDegrees(config.orbitCenter.lon, config.orbitCenter.lat);
+    const current = Cesium.Cartographic.fromDegrees(state.lon, state.lat);
+    const radial = new Cesium.EllipsoidGeodesic(center, current);
+    const bearing = radial.startHeading, direction = config.clockwise ? 1 : -1;
+    // A tangential orbit field plus radial correction joins the circle from land.
+    // Integrate the current position: changing the radius never relocates the aircraft.
+    const error = (radial.surfaceDistance - state.radiusMeters) / Math.max(1, state.radiusMeters);
+    const east = direction * Math.cos(bearing) - error * Math.sin(bearing);
+    const north = -direction * Math.sin(bearing) - error * Math.cos(bearing);
+    const desired = Cesium.Math.toDegrees(Math.atan2(east, north));
+    const delta = ((desired - state.headingDeg + 540) % 360) - 180;
+    // Bound heading changes by both the configured transition rate and coordinated-turn bank.
+    // The shared Aircraft Tracker continues to estimate and smooth the visual bank.
+    const physicalLimit = Cesium.Math.toDegrees(9.81 * Math.tan(Cesium.Math.toRadians(config.bankAngleDeg)) / Math.max(1, state.speedMps));
+    const turn = Math.max(-Math.min(config.headingTransitionDegPerSecond, physicalLimit) * seconds,
+        Math.min(Math.min(config.headingTransitionDegPerSecond, physicalLimit) * seconds, delta));
+    state.headingDeg = (state.headingDeg + turn + 360) % 360;
+    const next = Cesium.EllipsoidRhumbLine.fromStartHeadingDistance(current, Cesium.Math.toRadians(state.headingDeg), state.speedMps * seconds).end;
+    state.lat = Cesium.Math.toDegrees(next.latitude); state.lon = Cesium.Math.toDegrees(next.longitude);
+}
 function hasActiveFormation(domain = "") {
     return FORMATION_KEYS.some((key) => {
         const preset = FORMATION_PRESETS[key];
@@ -572,6 +667,11 @@ function tickFormations() {
         const preset = FORMATION_PRESETS[formationKey];
         const runtime = getRuntimeState(formationKey);
         if (!runtime.active) return;
+        if (preset.patrol) {
+            advancePatrol(preset, runtime, elapsedSeconds);
+            renderFormation(formationKey, timestamp);
+            return;
+        }
         const speedMetersPerSecond = preset.speedKts * (runtime.speedPercent / 100) * KNOT_TO_METERS_PER_SECOND;
         runtime.progress = (runtime.progress + ((speedMetersPerSecond * elapsedSeconds) / runtime.routeDistanceMeters)) % 1;
         const spacingDelta = runtime.targetSpacingPercent - runtime.spacingPercent;
@@ -600,8 +700,16 @@ function focusFormation(formationKey = __selectedFormationKey) {
     if (!preset || !runtime.active) return false;
     const trackKey = getTrackKey(formationKey, preset.focusMemberId);
     if (preset.domain === "naval") {
+        const viewer = window.__warzoneViewer;
+        const time = Cesium.JulianDate.now();
+        const lead = viewer?.entities?.getById(`naval-${trackKey}`)?.position?.getValue(time);
+        const points = preset.members.map(member => viewer?.entities?.getById(`naval-${getTrackKey(formationKey, member.id)}`)?.position?.getValue(time)).filter(Boolean);
+        const radius = lead ? Math.max(0, ...points.map(point => Cesium.Cartesian3.distance(lead, point))) : 0;
+        const frustum = viewer?.camera?.frustum;
+        const vertical = Number(frustum?.fovy || Math.PI / 3);
+        const halfAngle = Math.min(vertical / 2, Math.atan(Math.tan(vertical / 2) * Math.min(1, Number(frustum?.aspectRatio || 1))));
         return focusNavalVessel(trackKey, {
-            rangeMeters: preset.focusRangeMeters,
+            rangeMeters: Math.max(preset.focusRangeMeters, radius * 1.2 / Math.sin(halfAngle)),
             duration: 0.9,
         });
     }
@@ -634,6 +742,7 @@ function clearFormation(formationKey = __selectedFormationKey) {
         }
     });
     runtime.active = false;
+    if (preset.patrol) runtime.patrol = null;
     runtime.progress = 0;
     runtime.spacingPercent = runtime.targetSpacingPercent;
     releaseTrackerLayer(preset.domain);
@@ -661,7 +770,7 @@ async function applyViewMode(mode) {
     if (mode === "ctr") {
         const preset = FORMATION_PRESETS[__selectedFormationKey];
         const runtime = getRuntimeState(__selectedFormationKey);
-        const anchor = getAnchorPosition(preset, runtime);
+        const anchor = preset.patrol ? runtime.patrol || preset.start : getAnchorPosition(preset, runtime);
         globe.setContourFocusPosition?.({ lon: anchor.lon, lat: anchor.lat, height: 0 }, { force: true });
         globe.setContourGridVisible?.(true);
         Promise.resolve(globe.setContourLayerVisible?.(true))

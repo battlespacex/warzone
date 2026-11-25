@@ -2984,6 +2984,28 @@ function applyDevPanelSectionFilter(section = "aircraft") {
     const select = document.getElementById("wz-dev-section-select");
     if (select && select.value !== selected) select.value = selected;
 }
+function initDevUiVisibilityControls() {
+    const all = document.getElementById("wz-dev-hide-all");
+    if (!all || all.dataset.devBound === "1") return;
+    const controls = [
+        ["wz-dev-hide-logo", ".warzone-brand"],
+        ["wz-dev-hide-header", ".warzone-commandbar"],
+        ["wz-dev-hide-dock", ".wz-dock"],
+    ].map(([id, selector]) => ({ input: document.getElementById(id), selector }));
+    if (controls.some(({ input }) => !input)) return;
+    all.dataset.devBound = "1";
+    const apply = () => {
+        controls.forEach(({ input, selector }) => {
+            document.querySelectorAll(selector).forEach(element => element.classList.toggle("dev-ui-hidden", input.checked));
+        });
+        all.checked = controls.every(({ input }) => input.checked);
+    };
+    controls.forEach(({ input }) => input.addEventListener("change", apply));
+    all.addEventListener("change", () => {
+        controls.forEach(({ input }) => { input.checked = all.checked; });
+        apply();
+    });
+}
 function initDevPanelSectionFilter() {
     const body = document.getElementById("wz-dev-body");
     const grid = body?.querySelector(".wz-dev-grid");
@@ -3507,37 +3529,27 @@ export function initDevPanel() {
     panel.dataset.devBound = "1";
     const body = document.getElementById("wz-dev-body");
     const toggle = document.getElementById("wz-dev-toggle");
+    // Visibility is independent of developer-operation lifetime. Async work
+    // continues while the mounted controls are visually collapsed.
+    __devPanelOpen = true;
     const setOpen = (open) => {
-        if (body) body.hidden = !open;
-        toggle?.setAttribute("aria-expanded", String(open));
-        if (__devPanelOpen && !open) {
-            __devPanelGeneration += 1;
-            __devPanelPendingSimulationStarts.forEach((timer) => window.clearTimeout(timer));
-            __devPanelPendingSimulationStarts.clear();
-            stopDeveloperAircraftSearch();
-            __devPanelSimulationKeys.forEach((key) => stopDevTrackSimulation(key));
-            __devPanelSimulationKeys.clear();
-            __devPanelNavalKeys.forEach((key) => clearNavalVessel(key));
-            __devPanelNavalKeys.clear();
-            __devPanelEventKeys.forEach((key) => window.__warzoneViewer?.__warzone?.removeEvent?.(key));
-            __devPanelEventKeys.clear();
-            window.__warzoneFormationDevTuner?.clearAll?.();
-            closeDevAlertUiPreview();
-            if (__devEventUiPreviewVisible) closeDevEventUiPreview(false);
-            if (__devStaticTunerEnabled) clearDevStaticTunerAssets();
-            window.__hotspotLayer?.clearDevInspectionPreview?.();
+        panel.classList.toggle("dev-panel-collapsed", !open);
+        if (body) {
+            body.hidden = false;
+            body.inert = !open;
+            body.setAttribute("aria-hidden", String(!open));
         }
-        __devPanelOpen = open;
+        toggle?.setAttribute("aria-expanded", String(open));
     };
     document.addEventListener("keydown", (e) => {
         if (e.ctrlKey && e.shiftKey && (e.key === "`" || e.key === "~" || e.code === "Backquote")) {
             e.preventDefault();
-            setOpen(body?.hidden === true);
+            setOpen(panel.classList.contains("dev-panel-collapsed"));
         }
     });
     panel.hidden = false;
     if (isLocalDeveloperFeatureEnabled("environmentControls")) initDevMapLayerControls();
-    toggle?.addEventListener("click", () => setOpen(body?.hidden === true));
+    toggle?.addEventListener("click", () => setOpen(panel.classList.contains("dev-panel-collapsed")));
     document.getElementById("wz-dev-close")?.addEventListener("click", () => {
         setOpen(false);
         toggle?.focus();
@@ -3681,6 +3693,7 @@ export function initDevPanel() {
     initDevPanelAccordions();
     initDevPanelSectionFilter();
     showFullDevPanel();
+    initDevUiVisibilityControls();
     setOpen(true);
     devLog("Dev panel ready");
 }

@@ -228,20 +228,23 @@ test('large compressible orbital catalogs are shared without repeated provider d
 
 test('orbital refresh on a second API instance retains shared GP fetch time and source epoch',async()=>{
     const previousFetch=globalThis.fetch,previousNow=Date.now,previousPath=process.env.STRATOPS_SATELLITE_CACHE_PATH;let clock=previousNow(),calls=0;
+    const previousQuota={PROVIDER_QUOTA_STORE:process.env.PROVIDER_QUOTA_STORE,PROVIDER_QUOTA_DIRECTORY:process.env.PROVIDER_QUOTA_DIRECTORY};
     const epoch=new Date(clock).toISOString(),root=directory();
     globalThis.fetch=async url=>{calls++;return String(url).includes('gp.php')?Response.json([{NORAD_CAT_ID:99999,OBJECT_NAME:'USA TEST',OBJECT_ID:'2026-001A',EPOCH:epoch,
         MEAN_MOTION:15,ECCENTRICITY:.001,INCLINATION:50,RA_OF_ASC_NODE:0,ARG_OF_PERICENTER:0,MEAN_ANOMALY:0}]):new Response('NORAD_CAT_ID,OBJECT_NAME,COUNTRY,OPS_STATUS_CODE\n99999,USA TEST,US,+\n');};
     Date.now=()=>clock;
     try {
+        process.env.PROVIDER_QUOTA_STORE='file';process.env.PROVIDER_QUOTA_DIRECTORY=root+'quota';
         process.env.STRATOPS_SATELLITE_CACHE_PATH=root+'first.json';
         const first=await import('../../api/src/strategic-satellites.js?fixture='+randomUUID());
         const original=await first.getMilitarySatellitePayload({logger:{log(){},warn(){}}});assert.equal(original.count,1);
         clock+=3600000;process.env.STRATOPS_SATELLITE_CACHE_PATH=root+'second.json';
         const second=await import('../../api/src/strategic-satellites.js?fixture='+randomUUID());
         const restored=await second.getMilitarySatellitePayload({logger:{log(){},warn(){}}});
-        assert.equal(calls,2);assert.equal(restored.count,1);assert.equal(restored.sourceEpoch,original.sourceEpoch);
+        assert.equal(calls,6);assert.equal(restored.count,1);assert.equal(restored.sourceEpoch,original.sourceEpoch);
         assert.ok(Math.abs(Date.parse(restored.fetchedAt)-Date.parse(original.fetchedAt))<1000);
-    } finally {globalThis.fetch=previousFetch;Date.now=previousNow;if(previousPath===undefined)delete process.env.STRATOPS_SATELLITE_CACHE_PATH;else process.env.STRATOPS_SATELLITE_CACHE_PATH=previousPath;}
+    } finally {globalThis.fetch=previousFetch;Date.now=previousNow;if(previousPath===undefined)delete process.env.STRATOPS_SATELLITE_CACHE_PATH;else process.env.STRATOPS_SATELLITE_CACHE_PATH=previousPath;
+        for(const [key,value] of Object.entries(previousQuota)){if(value===undefined)delete process.env[key];else process.env[key]=value;}}
 });
 
 test('unknown monthly balance earns a daily share and is never reported as a fresh allowance',async()=>{

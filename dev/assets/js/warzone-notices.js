@@ -1,4 +1,4 @@
-import { cloneNoticeTemplate, noticeField, noticeAction } from './warzone-notice-templates.js';
+import { cloneNoticeTemplate, noticeField, noticeAction, setNoticeButtonLabel } from './warzone-notice-templates.js';
 import * as Cesium from 'cesium';
 import { onLayerChange, isLayerEnabled } from './warzone-layers.js';
 import { NOTICE_LAYERS, correlateObservation, matchesNoticeLayers, noticeGeometryParts, noticeGeometryPoints, noticeStatus, nextNoticeBoundary } from '../../../apps/shared/geospatial-notices.js';
@@ -7,6 +7,14 @@ import { getAllNavalSnapshots } from './warzone-live-naval.js';
 import { getActiveRegion, onRegionChange } from './warzone-region-selector.js';
 import { getAssetFocusController } from './warzone-asset-focus-controller.js';
 let owner = null;
+export function placeNoticePreview(x, y, width, height, bounds, gap, obstacles = [], preferredSide = null, preferredTop = null) {
+    const clamp = (v, min, max) => Math.max(min, Math.min(Math.max(min, max), v));
+    const top = clamp(preferredTop ?? y - height / 2, bounds.top, bounds.bottom - height);
+    const candidates = (preferredSide === 'right' ? [x + gap, x - gap - width] : [x - gap - width, x + gap]).flatMap(left => [top, ...obstacles.flatMap(r => [r.top - height - 8, r.bottom + 8])].map(t => ({ left, top: clamp(t, bounds.top, bounds.bottom - height) })));
+    const fits = p => p.left >= bounds.left && p.left + width <= bounds.right && !obstacles.some(r => p.left < r.right && p.left + width > r.left && p.top < r.bottom && p.top + height > r.top);
+    return candidates.find(fits) || { left: clamp(x - gap - width, bounds.left, bounds.right - width),
+        top: y - gap - height >= bounds.top ? y - gap - height : y + gap + height <= bounds.bottom ? y + gap : top };
+}
 export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () => true, showOnInit = true, loadCapture = () => import(/* webpackChunkName: "warzone-notice-capture" */ './warzone-notice-capture.js') } = {}) {
     if (!viewer || owner?.viewer === viewer) return; owner?.dispose();
     let source = null, handler = null, timer = null, controller = null, panel = null, selected = null, generation = 0, frame = 0;
@@ -19,12 +27,34 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     let noticeFocus = null, focusButton = null;
     let previewMode = false, previewLeader = null, previewTimer = 0, expiryTimer = 0, captureSequence = 0, cancelCapture = null;
     let mainWidget = null, removePopupTracking = null, popupLayout = '', edgeArmed = false, popupOffset = { x: 16, y: -18 }, popupView = null, popupMeasure = '', popupSize = '', lastAnchor = null;
+    let popupSide = null, popupTopOffset = null;
     const fading = new Map();
+    const markerImages = new Map();
+    let popupResize = null;
+    let hoverFrame = 0, hovered = null, hoverPosition = null;
+    function clearNoticeHover() {
+        if (hoverFrame) cancelAnimationFrame(hoverFrame); hoverFrame = 0;
+        if (hovered?.billboard) hovered.billboard.scale = selected?.entity === hovered ? style.markerSelectedScale : 1;
+        hovered = null;
+    }
+    function hoverNotice(movement) {
+        hoverPosition = movement.endPosition;
+        if (hoverFrame) return;
+        hoverFrame = requestAnimationFrame(() => {
+            hoverFrame = 0;
+            const picked = viewer.scene.pick(hoverPosition)?.id;
+            const next = picked?.billboard && records.has(picked.__noticeId) ? picked : null;
+            if (next === hovered) return;
+            clearNoticeHover(); hovered = next;
+            if (hovered) hovered.billboard.scale = selected?.entity === hovered ? style.markerSelectedScale : style.markerHoverScale;
+            viewer.scene.requestRender();
+        });
+    }
     const entityIds = new Map();
     let layerKey = NOTICE_LAYERS.filter(isLayerEnabled).join(',');
     function unfocusNotice({ restore = true } = {}) {
         const previous = noticeFocus; noticeFocus = null;
-        if (focusButton) focusButton.textContent = focusButton.getAttribute('data-focus-label');
+        if (focusButton) setNoticeButtonLabel(focusButton, focusButton.getAttribute('data-focus-label'));
         if (!restore || !previous || viewer.trackedEntity || getAssetFocusController().getState().assetId) return;
         viewer.camera.cancelFlight?.();
         viewer.camera.flyTo({ destination: previous.view.position, orientation: { direction: previous.view.direction, up: previous.view.up }, endTransform: Cesium.Matrix4.IDENTITY, duration: 1 });
@@ -40,18 +70,26 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         const view = noticeFocus?.view || { position: Cesium.Cartesian3.clone(camera.positionWC), direction: Cesium.Cartesian3.clone(camera.directionWC), up: Cesium.Cartesian3.clone(camera.upWC) };
         noticeFocus = { id: n.id, view };
         camera.cancelFlight?.(); camera.flyToBoundingSphere(sphere, { duration: 1 });
-        if (focusButton) focusButton.textContent = focusButton.getAttribute('data-unfocus-label');
+        if (focusButton) setNoticeButtonLabel(focusButton, focusButton.getAttribute('data-unfocus-label'));
     }
     // Cached presentation tokens: never parse CSS inside the render loop.
     function readStyle() {
         const css = typeof getComputedStyle === 'function' ? getComputedStyle(document.documentElement) : null;
         const value = (name, fallback) => css?.getPropertyValue('--wz-notice-' + name)?.trim() || fallback;
         const number = (name, fallback, min, max) => { const n = Number.parseFloat(value(name, '')); return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback; };
+        const notam = name => css?.getPropertyValue('--wz-notam-' + name)?.trim() || '';
+        const notamNumber = name => Math.max(0, Number.parseFloat(notam(name)) || 0);
+        const notamColor = name => Cesium.Color.fromCssColorString(notam(name)) || null;
         const color = (name, fallback) => Cesium.Color.fromCssColorString(value(name, fallback)) || Cesium.Color.ORANGE;
         return {
             line: color('line-color', '#ff9f1c'), fill: color('fill-color', '#ff9f1c'), hatch: color('hatch-color', '#ff9f1c'), critical: color('critical-color', '#ff4d4d'),
+            markerWidth: notamNumber('marker-width'), markerHeight: notamNumber('marker-height'),
+            markerRadius: notamNumber('marker-radius'), markerBorder: notamNumber('marker-border-width'),
+            markerColor: notamColor('marker-color'), markerBackground: notamColor('marker-background'),
+            markerHoverScale: notamNumber('marker-hover-scale'), markerSelectedScale: notamNumber('marker-selected-scale'),
+            connectorColor: notamColor('connector-color'), connectorMidpoint: notam('connector-fade-midpoint'), popupGap: notamNumber('popup-gap'),
             opacity: number('fill-opacity', .07, 0, 1), hatchOpacity: number('hatch-opacity', .22, 0, 1), stripes: number('hatch-repeat', 32, 2, 128),
-            width: number('line-width', 2, 1, 10), height: number('height', 60, 1, 1000), point: number('marker-size', 9, 3, 32), enclosures: number('show-radius', 0, 0, 1) === 1, previewDistance: number('preview-distance', 1800000, 1000, 20000000), previewDelay: number('preview-delay', 180, 0, 2000), labelDistance: number('label-distance', 500000, 0, 20000000), labelSize: number('label-size', 12, 8, 32), hatchWidth: number('hatch-width', 1, .1, 12), hatchSpacing: number('hatch-spacing', 12, 2, 64), hatchAngle: number('hatch-angle', 45, -180, 180)
+            width: number('line-width', 2, 1, 10), height: number('height', 60, 1, 1000), point: number('marker-size', 10, 3, 32), enclosures: number('show-radius', 0, 0, 1) === 1, previewDistance: number('preview-distance', 1800000, 1000, 20000000), previewDelay: number('preview-delay', 180, 0, 2000), labelDistance: number('label-distance', 500000, 0, 20000000), labelSize: number('label-size', 12, 8, 32), hatchWidth: number('hatch-width', 1, .1, 12), hatchSpacing: number('hatch-spacing', 12, 2, 64), hatchAngle: number('hatch-angle', 45, -180, 180)
         };
     }
     let style = readStyle(), detailOpen = false;
@@ -65,6 +103,14 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         ctx.strokeStyle = hatch.withAlpha(style.hatchOpacity).toCssColorString(); ctx.lineWidth = style.hatchWidth;
         ctx.beginPath(); ctx.moveTo(image.width / 2, 0); ctx.lineTo(image.width / 2, image.height); ctx.stroke();
         return new Cesium.ImageMaterialProperty({ image, transparent: true, repeat: new Cesium.Cartesian2(style.stripes * 12 / style.hatchSpacing, style.stripes * 12 / style.hatchSpacing) });
+    }
+    function markerImage(line) {
+        const key = JSON.stringify([style.markerWidth, style.markerHeight, style.markerRadius, style.markerBorder, style.markerBackground, line]);
+        if (!markerImages.has(key)) {
+            const width = style.markerWidth, height = style.markerHeight, inset = Math.min(style.markerBorder, width, height) / 2;
+            markerImages.set(key, 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width * 3}" height="${height * 3}" viewBox="0 0 ${width} ${height}"><rect x="${inset}" y="${inset}" width="${width - inset * 2}" height="${height - inset * 2}" rx="${style.markerRadius}" fill="${(style.markerBackground || Cesium.Color.TRANSPARENT).toCssColorString()}" stroke="${line.toCssColorString()}" stroke-width="${inset * 2}"/></svg>`));
+        }
+        return markerImages.get(key);
     }
     function graphics(n) {
         let material; const line = noticeColor(n);
@@ -87,7 +133,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
                 const values = geometry.attributes.position.values, positions = []; for (let i = 0; i < values.length; i += 3)positions.push(Cesium.Cartesian3.fromArray(values, i)); positions.push(positions[0]); boundary = { positions, clampToGround: true, width: style.width, material: line };
             }
             return {
-                position: Cesium.Cartesian3.fromDegrees(lon, lat, style.height), point: { pixelSize: style.point, color: line, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, style.height), ...(String(n.noticeType).toLowerCase() === 'notam' ? { billboard: { image: markerImage(style.markerColor || line), color: Cesium.Color.WHITE, width: style.markerWidth, height: style.markerHeight, scale: selected?.id === n.id ? style.markerSelectedScale : 1 } } : { point: { pixelSize: style.point, color: line, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 } }),
                 ...(boundary ? { ellipse: { semiMajorAxis: n.metadata.radiusNm * 1852, semiMinorAxis: n.metadata.radiusNm * 1852, material, stRotation: style.hatchAngle * Math.PI / 180, outline: false }, polyline: boundary } : {})
             };
         }
@@ -105,7 +151,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
             const id = i === 0 ? n.id : n.id + '::part:' + i, part = { ...n, geometry }, next = graphics(part), position = next.position || anchor(part);
             let entity = source.entities.getById(id); if (!entity) entity = source.entities.add({ id });
             entity.__noticeId = n.id; entity.__noticeColor = noticeColor(n); entity.position = position;
-            for (const key of ['polygon', 'polyline', 'corridor', 'ellipse', 'point']) entity[key] = next[key];
+            for (const key of ['polygon', 'polyline', 'corridor', 'ellipse', 'point', 'billboard']) entity[key] = next[key];
             if (i === 0 && style.labelDistance > 0) entity.label = {
                 text: n.sourceId || n.title, font: style.labelSize + 'px sans-serif', fillColor: noticeColor(n), outlineColor: Cesium.Color.BLACK, outlineWidth: 2, style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                 pixelOffset: new Cesium.Cartesian2(10, -10), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, style.labelDistance)
@@ -122,24 +168,40 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     function shotButton(host, n, entity) { const button = noticeAction(host, 'shot'); button.disabled = !n.geometry; button.title = n.geometry ? 'Select a screen-space screenshot rectangle' : 'No published location is available'; button.onclick = () => takeShot(n, entity); }
     function updatePreviewLeader(position) {
         if (!position || !panel?.getBoundingClientRect || !document.createElementNS) return;
-        if (!previewLeader) { previewLeader = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); previewLeader.classList.add('wz-notice-preview-leader'); previewLeader.append(document.createElementNS('http://www.w3.org/2000/svg', 'line')); document.body.append(previewLeader); }
-        const canvas = viewer.scene.canvas.getBoundingClientRect(), rect = panel.getBoundingClientRect(), x = canvas.left + position.x, y = canvas.top + position.y, line = previewLeader.firstElementChild;
+        if (!previewLeader) {
+            const make = tag => document.createElementNS('http://www.w3.org/2000/svg', tag);
+            previewLeader = make('svg'); previewLeader.classList.add('wz-notice-preview-leader'); previewLeader.setAttribute('aria-hidden', 'true');
+            const defs = make('defs'), gradient = make('linearGradient'); gradient.setAttribute('id', 'wz-notice-connector-gradient'); gradient.setAttribute('gradientUnits', 'userSpaceOnUse');
+            for (const offset of ['0%', style.connectorMidpoint, '100%']) { const stop = make('stop'); stop.setAttribute('offset', offset); gradient.append(stop); }
+            defs.append(gradient); previewLeader.append(defs, make('line')); document.body.append(previewLeader);
+        }
+        const canvas = viewer.scene.canvas.getBoundingClientRect(), rect = panel.getBoundingClientRect(), x = canvas.left + position.x, y = canvas.top + position.y, line = previewLeader.querySelector('line');
         for (const [key, value] of Object.entries({ x1: x, y1: y, x2: Math.max(rect.left, Math.min(rect.right, x)), y2: Math.max(rect.top, Math.min(rect.bottom, y)) })) line.setAttribute(key, String(value));
+        const gradient = previewLeader.querySelector('[id="wz-notice-connector-gradient"]');
+        for (const key of ['x1', 'y1', 'x2', 'y2']) gradient.setAttribute(key, line.getAttribute(key));
+        gradient.querySelectorAll('stop')[1].setAttribute('offset', style.connectorMidpoint);
+        previewLeader.style.color = (style.connectorColor || noticeColor(selected?.notice || {})).toCssColorString();
+        line.style.stroke = 'url(#wz-notice-connector-gradient)';
         previewLeader.style.display = '';
     }
     function compactPreview(n, entity, position) {
         if (!n) return; const key = 'preview:' + JSON.stringify([n.id, n.title, n.activityType, n.region, n.fir, currentStatus(n), n.effectiveUntil]);
         if (previewMode && panel && panelKey === key) { selected.notice = n; selected.signature = JSON.stringify(n); return; }
         widgetRequested = true; mountPanel(n.title || n.sourceId, true); panelKey = key; detailOpen = true; previewMode = true; selectAnchor(n); panel.className = 'wz-notice-popup wz-notice-preview';
-        if (position) { const rect = viewer.scene.canvas.getBoundingClientRect?.() || { left: 0, top: 0 }; panel.style.left = Math.max(8, Math.min(rect.left + position.x + 16, (window.innerWidth || 1024) - (panel.offsetWidth || 280) - 8)) + 'px'; panel.style.top = Math.max(8, Math.min(rect.top + position.y + 16, (window.innerHeight || 768) - (panel.offsetHeight || 220) - 8)) + 'px'; }
         const body = panel.querySelector('.wz-widget-body'); body.querySelector('ul').hidden = true;
         const view = cloneNoticeTemplate('preview');
         noticeField(view, 'category').textContent = n.activityType || n.noticeType;
-        for (const [name, value] of Object.entries({ status: currentStatus(n).toUpperCase(), area: n.region || n.fir || n.country || 'Published location', validity: n.effectiveUntil || (n.metadata?.permanent ? 'Permanent' : 'Not published') })) {
-            const field = noticeField(view, name); field.textContent = field.getAttribute('data-label') + ': ' + value;
+        for (const [name, value] of Object.entries({
+            status: currentStatus(n).toLowerCase().replace(/^./, c => c.toUpperCase()),
+            area: n.region || n.fir || n.country || 'Published location',
+            validity: n.effectiveUntil || (n.metadata?.permanent ? 'Permanent' : 'Not published')
+        })) {
+            const field = noticeField(view, name);
+            if (field) field.textContent = value;
         }
         noticeAction(view, 'more').onclick = () => details(records.get(n.id) || n, entity, position);
-        shotButton(view, n, entity); body.append(...view.children); updatePreviewLeader(position);
+        shotButton(view, n, entity); body.append(...view.children);
+        if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) positionNoticeAt(position);
     }
     function currentStatus(n) { return n.effectiveFrom ? noticeStatus(n) : n.status || 'unknown'; }
     function scheduleExpiry() {
@@ -162,6 +224,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         fading.set(element, animation); animation.finished.catch(() => { }).then(() => { element.remove(); fading.delete(element); });
     }
     function close(fade = true) {
+        popupResize?.disconnect(); popupResize = null;
         restoreHighlight();
         removePopupTracking?.(); removePopupTracking = null; disposeDrag?.(); disposeDrag = null;
         removePanel(panel, fade && detailOpen && active()); panel = null;
@@ -177,16 +240,22 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         }
         else { saved?.disposeDrag?.(); saved?.panel.remove(); if (widgetRequested && active()) showList(); }
     }
-    function restoreHighlight() { const entity = selected?.entity; if (entity?.polyline) entity.polyline.material = entity.__noticeColor || style.line; if (entity?.ellipse) entity.ellipse.outlineColor = style.line; }
+    function restoreHighlight() { const entity = selected?.entity; if (entity?.billboard) entity.billboard.scale = 1; if (entity?.polyline) entity.polyline.material = entity.__noticeColor || style.line; if (entity?.ellipse) entity.ellipse.outlineColor = style.line; }
     function selectAnchor(n) {
         const same = selected?.id === n.id; restoreHighlight();
         selected = { id: n.id, notice: n, world: anchor(n), signature: JSON.stringify(n), entity: source?.entities.getById(n.id) }; popupLayout = ''; popupView = null;
-        if (!same) { edgeArmed = false; popupOffset = { x: 16, y: -18 }; popupSize = ''; lastAnchor = null; }
+        if (selected.entity?.billboard) selected.entity.billboard.scale = style.markerSelectedScale;
+        if (!popupResize && typeof ResizeObserver !== 'undefined') {
+            popupResize = new ResizeObserver(() => { popupView = null; popupMeasure = ''; viewer.scene.requestRender(); });
+            for (const element of [panel, viewer.scene.canvas, ...(document.querySelectorAll?.('#wz-map-layers-pane, .wz-dock, .wz-header') || [])]) if (element) popupResize.observe(element);
+        }
+        if (!same) { popupSide = null; popupTopOffset = null; edgeArmed = false; popupOffset = { x: 16, y: -18 }; popupSize = ''; lastAnchor = null; }
         if (!removePopupTracking) removePopupTracking = viewer.scene.postRender?.addEventListener?.(positionPopup);
         viewer.scene.requestRender();
     }
     function positionPopup() {
         if (!detailOpen || !panel) return;
+        if (previewMode && (!records.has(selected?.id) || !source?.entities.getById(selected?.id) || selected.entity?.show === false || source?.show === false)) { dismissDetails(); return; }
         if (!selected?.world) { dismissDetails(); return; }
         const scene = viewer.scene, camera = viewer.camera;
         const measure = [panel.offsetWidth, panel.offsetHeight, scene.canvas.clientWidth, scene.canvas.clientHeight, window.innerWidth, window.innerHeight].join('|');
@@ -196,22 +265,26 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         const point = Cesium.SceneTransforms.worldToWindowCoordinates(scene, selected.world);
         if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) { dismissDetails(); return; }
         const map = scene.canvas.getBoundingClientRect(), x = map.left + point.x, y = map.top + point.y;
-        const size = panel.offsetWidth + '|' + panel.offsetHeight;
-        // Content expansion/refreshed text gets an initial safe layout, not a navigation exit.
-        if (size !== popupSize && lastAnchor?.x === x && lastAnchor?.y === y) edgeArmed = false;
-        popupSize = size; lastAnchor = { x, y };
-        const key = [x, y, panel.offsetWidth, panel.offsetHeight, window.innerWidth, window.innerHeight, map.left, map.top, map.right, map.bottom].join('|');
-        if (key === popupLayout) return; popupLayout = key;
-        if (!edgeArmed) {
-            popupOffset.x = Math.max(Math.max(0, map.left) + 11, Math.min(x + 16, Math.min(window.innerWidth, map.right) - (panel.offsetWidth || 320) - 11)) - x;
-            popupOffset.y = Math.max(Math.max(0, map.top) + 11, Math.min(y - 18, Math.min(window.innerHeight, map.bottom) - (panel.offsetHeight || 220) - 11)) - y;
-        }
-        panel.style.left = x + popupOffset.x + 'px'; panel.style.top = y + popupOffset.y + 'px'; panel.style.right = 'auto';
-        updatePreviewLeader(point);
-        const rect = panel.getBoundingClientRect(); if (!rect.width || !rect.height) return;
-        const outside = rect.left <= Math.max(0, map.left) + 10 || rect.top <= Math.max(0, map.top) + 10 || rect.right >= Math.min(window.innerWidth, map.right) - 10 || rect.bottom >= Math.min(window.innerHeight, map.bottom) - 10;
-        if (edgeArmed && outside) dismissDetails(); else if (!edgeArmed) { edgeArmed = true; viewer.scene.requestRender(); popupLayout = ''; popupView = null; }
+        positionNoticeAt(point);
     }
+    function positionNoticeAt(point) {
+        const map = viewer.scene.canvas.getBoundingClientRect?.() || { left: 0, top: 0 };
+        const x = map.left + point.x, y = map.top + point.y;
+        const bounds = { left: Math.max(0, map.left) + 11, top: Math.max(0, map.top) + 11,
+            right: Math.min(window.innerWidth || 1024, map.right ?? window.innerWidth ?? 1024) - 11,
+            bottom: Math.min(window.innerHeight || 768, map.bottom ?? window.innerHeight ?? 768) - 11 };
+        if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) { dismissDetails(); return; }
+        panel.style.minWidth = '0'; panel.style.maxWidth = Math.max(0, bounds.right - bounds.left) + 'px';
+        panel.style.maxHeight = Math.max(0, bounds.bottom - bounds.top) + 'px'; panel.style.overflowY = 'auto';
+        const width = panel.offsetWidth || (previewMode ? 280 : 320), height = panel.offsetHeight || 220;
+        const obstacles = [...(document.querySelectorAll?.('#wz-map-layers-pane, .wz-dock, .wz-header') || [])].filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden').map(el => el.getBoundingClientRect());
+        const placed = placeNoticePreview(x, y, width, height, bounds, style.popupGap, obstacles, popupSide, popupTopOffset === null ? null : y + popupTopOffset);
+        if (placed.left + width <= x) popupSide = 'left'; else if (placed.left >= x) popupSide = 'right';
+        if (popupTopOffset === null) popupTopOffset = placed.top - y;
+        panel.style.left = placed.left + 'px'; panel.style.top = placed.top + 'px'; panel.style.right = 'auto';
+        lastAnchor = { x, y }; updatePreviewLeader(point);
+    }
+
     function refreshSelection() {
         if (!selected) return; const next = records.get(selected.id); if (!next || JSON.stringify(next) === selected.signature) return;
         const entity = source?.entities.getById(next.id), compact = previewMode;
@@ -241,8 +314,9 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     }
     function showState(title, message) { if (!widgetRequested || detailOpen) return; const key = title + '|' + message; if (panel && panelKey === key) return; mountPanel(title); panelKey = key; panel.querySelector('ul').hidden = true; const p = cloneNoticeTemplate('state'); p.textContent = message; panel.querySelector('.wz-widget-body').append(p); }
     function details(n, entity, position) {
+        if (panel) { panel.style.minWidth = ''; panel.style.maxWidth = ''; panel.style.maxHeight = ''; panel.style.overflowY = ''; }
         if (!n?.id) return; widgetRequested = true; mountPanel(n.title || n.sourceId, true); detailOpen = true; previewMode = false; panel.className = 'wz-notice-popup'; selectAnchor(n); if (entity?.polyline) entity.polyline.material = Cesium.Color.WHITE; if (entity?.ellipse) entity.ellipse.outlineColor = Cesium.Color.WHITE;
-        if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) { const rect = viewer.scene.canvas.getBoundingClientRect?.() || { left: 0, top: 0 }; panel.style.left = Math.max(8, Math.min(rect.left + position.x + 16, (window.innerWidth || 1024) - (panel.offsetWidth || 320) - 8)) + 'px'; panel.style.top = Math.max(8, Math.min(rect.top + position.y + 16, (window.innerHeight || 768) - (panel.offsetHeight || 300) - 8)) + 'px'; }
+
         const body = panel.querySelector('.wz-widget-body'), view = cloneNoticeTemplate('popup');
         body.querySelector('ul').remove();
         const list = view.querySelector('ul'), brief = noticeField(view, 'summary');
@@ -252,22 +326,51 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         for (const [key, value] of Object.entries({ Category: n.noticeType, ID: n.sourceId, Issuer: n.issuer, Country: n.country, Region: n.region, FIR: n.fir, NAVAREA: n.navarea, Activity: n.activityType, Status: n.status, Issued: n.issuedAt, From: n.effectiveFrom, Until: n.effectiveUntil, Schedule: n.schedule, Altitude: [n.lowerAltitude, n.upperAltitude, n.altitudeReference].filter(Boolean).join(' / '), Coordinates: JSON.stringify(n.geometry?.coordinates || null), Radius: n.metadata?.radiusNm ? `${n.metadata.radiusNm} NM` : 'Not published', Precision: [n.geometryAccuracy || 'Location unavailable', n.metadata?.boundaryError].filter(Boolean).join('; '), Confidence: n.geometryConfidence, Verified: n.lastVerifiedAt || 'Unverified', Fetched: n.lastFetchedAt, Summary: n.summary, 'Original notice': n.rawText, Provenance: n.provenance?.extraction })) {
             noticeField(list, key).textContent = value || 'Unknown';
         }
-        const link = cloneNoticeTemplate('source'); link.href = n.sourceUrl; list.append(link);
         for (const ref of n.sourceRecords || []) { const li = cloneNoticeTemplate('row'); noticeField(li, 'label').textContent = ref.provider; noticeField(li, 'value').textContent = ref.rawText; list.append(li); }
-        if (entity) { focusButton = noticeAction(actions, 'focus'); focusButton.textContent = focusButton.getAttribute(noticeFocus?.id === n.id ? 'data-unfocus-label' : 'data-focus-label'); focusButton.onclick = () => focusNotice(n); } else noticeAction(actions, 'focus').remove();
+        if (entity) { focusButton = noticeAction(actions, 'focus'); setNoticeButtonLabel(focusButton, focusButton.getAttribute(noticeFocus?.id === n.id ? 'data-unfocus-label' : 'data-focus-label')); focusButton.onclick = () => focusNotice(n); } else noticeAction(actions, 'focus').remove();
         const copy = noticeAction(actions, 'copy'); copy.onclick = () => navigator.clipboard?.writeText(JSON.stringify(n.geometry?.coordinates || null));
         if (records.has(n.id)) {
             noticeAction(actions, 'back').onclick = dismissDetails;
-            const overlap = noticeAction(actions, 'overlap'); overlap.onclick = () => {
-                const observations = [...getAllLiveTrackSnapshots(), ...getAllNavalSnapshots()]; let count = 0;
+        } else {
+            noticeAction(actions, 'back').remove();
+        }
+
+        const correlation = noticeField(view, 'correlation');
+
+        if (correlation) {
+            if (!n.geometry) {
+                correlation.textContent = 'Location unavailable';
+            } else {
+                const observations = [
+                    ...getAllLiveTrackSnapshots(),
+                    ...getAllNavalSnapshots()
+                ];
+
+                let count = 0;
+
                 for (const row of observations) {
-                    const result = correlateObservation(n, { longitude: row.lon ?? row.lng ?? row.longitude, latitude: row.lat ?? row.latitude, observed_at: row.observed_at || row.metadata?.observed_at || row.occurred_at || '' });
-                    if (result.geographicOverlap && result.temporalOverlap) count++;
+                    const result = correlateObservation(n, {
+                        longitude: row.lon ?? row.lng ?? row.longitude,
+                        latitude: row.lat ?? row.latitude,
+                        observed_at:
+                            row.observed_at ||
+                            row.metadata?.observed_at ||
+                            row.occurred_at ||
+                            ''
+                    });
+
+                    if (result.geographicOverlap && result.temporalOverlap) {
+                        count++;
+                    }
                 }
-                overlap.textContent = `${count} spatial/time overlaps; participation unverified`;
-            };
-        } else { noticeAction(actions, 'back').remove(); noticeAction(actions, 'overlap').remove(); }
+
+                correlation.textContent = `${count} spatial/time overlaps · Participation unverified`;
+            }
+        }
+        if (lastAnchor) positionNoticeAt({ x: lastAnchor.x - (viewer.scene.canvas.getBoundingClientRect?.().left || 0), y: lastAnchor.y - (viewer.scene.canvas.getBoundingClientRect?.().top || 0) });
+        else if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) positionNoticeAt(position);
     }
+
     function showList(message = 'Published notices') {
         if (!widgetRequested || detailOpen) return;
         const key = JSON.stringify([message, viewStatus, militaryOnly, offset, total, [...records.values()].map(n => [n.id, n.sourceId, n.status, Boolean(n.geometry)])]);
@@ -281,7 +384,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         if (noticeFocus) { const unfocus = noticeAction(controls, 'unfocus'); unfocus.onclick = () => { unfocusNotice(); panelKey = ''; showList(); }; } else noticeAction(controls, 'unfocus').remove();
         const status = noticeAction(controls, 'status'); status.value = viewStatus;
         status.onchange = () => { viewStatus = status.value; offset = 0; void refresh(); };
-        const coverage = noticeAction(controls, 'coverage'); coverage.textContent = coverage.getAttribute(militaryOnly ? 'data-military-label' : 'data-all-label'); coverage.onclick = () => { militaryOnly = !militaryOnly; offset = 0; void refresh(); };
+        const coverage = noticeAction(controls, 'coverage'); setNoticeButtonLabel(coverage, coverage.getAttribute(militaryOnly ? 'data-military-label' : 'data-all-label')); coverage.onclick = () => { militaryOnly = !militaryOnly; offset = 0; void refresh(); };
         for (const [action, next] of [['previous', offset - 200], ['next', offset + 200]]) {
             const button = noticeAction(controls, action);
             if (next >= 0 && next < total) button.onclick = () => { offset = next; void refresh(); }; else button.remove();
@@ -295,7 +398,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
             cards.append(card);
         }
     }
-    function clear() { for (const [element, animation] of fading) { animation.cancel(); element.remove(); } fading.clear(); ++captureSequence; cancelCapture?.(); cancelCapture = null; clearTimeout(previewTimer); previewTimer = 0; clearTimeout(expiryTimer); expiryTimer = 0; entityIds.clear(); unfocusNotice(); generation++; controller?.abort(); controller = null; requestKey = ''; scenePending = null; clearTimeout(wheelTimer); wheelTimer = 0; wheelActive = false; if (frame) cancelAnimationFrame(frame); frame = 0; clearTimeout(timer); timer = null; clearTimeout(scopeTimer); scopeTimer = 0; scopePending = false; handler?.destroy(); handler = null; close(false); if (source) { viewer.dataSources.remove(source, true); viewer.scene.requestRender(); } source = null; records.clear(); renderKeys.clear(); }
+    function clear() { clearNoticeHover(); markerImages.clear(); for (const [element, animation] of fading) { animation.cancel(); element.remove(); } fading.clear(); ++captureSequence; cancelCapture?.(); cancelCapture = null; clearTimeout(previewTimer); previewTimer = 0; clearTimeout(expiryTimer); expiryTimer = 0; entityIds.clear(); unfocusNotice(); generation++; controller?.abort(); controller = null; requestKey = ''; scenePending = null; clearTimeout(wheelTimer); wheelTimer = 0; wheelActive = false; if (frame) cancelAnimationFrame(frame); frame = 0; clearTimeout(timer); timer = null; clearTimeout(scopeTimer); scopeTimer = 0; scopePending = false; handler?.destroy(); handler = null; close(false); if (source) { viewer.dataSources.remove(source, true); viewer.scene.requestRender(); } source = null; records.clear(); renderKeys.clear(); }
     const interactionBusy = () => pointerHeld || wheelActive;
     function queueSceneWork(work) { scenePending = work; if (interactionBusy() || frame) return; frame = requestAnimationFrame(() => { frame = 0; if (interactionBusy()) return; const next = scenePending; scenePending = null; next?.(); }); }
     async function refresh() {
@@ -328,7 +431,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
                         }
                     } finally { source.entities.resumeEvents(); } if (missing.length) viewer.scene.requestRender(); if (index < missing.length) queueSceneWork(chunk); else refreshSelection();
                 }; chunk();
-                if (!handler) { handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas); handler.setInputAction(click => { const entity = viewer.scene.pick(click.position)?.id; const n = entity && records.get(entity.__noticeId || entity.id); if (n) compactPreview(n, entity, click.position); }, Cesium.ScreenSpaceEventType.LEFT_CLICK); }
+                if (!handler) { handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas); handler.setInputAction(click => { const entity = viewer.scene.pick(click.position)?.id; const n = entity && records.get(entity.__noticeId || entity.id); if (n) compactPreview(n, entity, click.position); }, Cesium.ScreenSpaceEventType.LEFT_CLICK); if (Cesium.ScreenSpaceEventType.MOUSE_MOVE !== undefined) handler.setInputAction(hoverNotice, Cesium.ScreenSpaceEventType.MOUSE_MOVE); }
                 if (!selected) { if (!notices.length) showList('No notices in selected area'); else showList(`${data.state === 'stale' ? 'Provider temporarily unavailable; cached notices' : 'Published notices'} (${notices.length}${data.total > 200 ? ' of ' + data.total : ''}${data.partial ? '; partial feed' : ''})`); }
                 scheduleExpiry();
             }; queueSceneWork(apply);
@@ -350,7 +453,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     function yieldFocus() { if (viewer.trackedEntity || getAssetFocusController().getState().assetId) { const hadFocus = Boolean(noticeFocus); unfocusNotice({ restore: false }); if (hadFocus && !detailOpen && panel) { close(); showList(); } } }
     function releasePointer() { pointerHeld = false; resumeScope(); }
     function wheel(event) { if (event.target !== viewer.scene.canvas || !active()) return; wheelActive = true; clearTimeout(wheelTimer); wheelTimer = setTimeout(() => { wheelTimer = 0; wheelActive = false; resumeScope(); }, 120); }
-    function restyle() { const next = readStyle(); if (JSON.stringify(next) === JSON.stringify(style)) return; style = next; for (const n of records.values()) { const entity = source?.entities.getById(n.id); if (!entity) continue; applyNoticeGraphics(n); renderKeys.set(n.id, renderKey(n)); } viewer.scene.requestRender(); }
+    function restyle() { const next = readStyle(); if (JSON.stringify(next) === JSON.stringify(style)) return; style = next; markerImages.clear(); popupView = null; popupMeasure = ""; for (const n of records.values()) { const entity = source?.entities.getById(n.id); if (!entity) continue; applyNoticeGraphics(n); renderKeys.set(n.id, renderKey(n)); } viewer.scene.requestRender(); }
     document.addEventListener('pointerdown', dismiss);
     document.addEventListener('wz:asset-focus-changed', yieldFocus);
     document.addEventListener('pointerup', releasePointer);
@@ -359,9 +462,18 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     window.addEventListener?.('blur', releasePointer);
     document.addEventListener('keydown', dismiss);
     window.addEventListener?.('resize', restyle);
+    let styleFrame = 0;
+    const queueStyleRefresh = () => { if (!styleFrame) styleFrame = requestAnimationFrame(() => { styleFrame = 0; restyle(); }); };
+    const stylesheetLoaded = event => { if (event.target?.tagName === 'LINK') queueStyleRefresh(); };
+    const styleObserver = typeof MutationObserver === 'undefined' ? null : new MutationObserver(queueStyleRefresh);
+    if (styleObserver) {
+        styleObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+        if (document.head) styleObserver.observe(document.head, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['href', 'media', 'disabled'] });
+    }
+    document.addEventListener('load', stylesheetLoaded, true);
     document.addEventListener('wz:notice-style-refresh', restyle);
     document.addEventListener('wz:region-camera-settled', resumeScope);
     const removeMoveEnd = viewer.camera?.moveEnd?.addEventListener?.(resumeScope);
-    owner = { viewer, dispose() { clear(); unsubscribe?.(); unsubscribeRegion?.(); document.removeEventListener('pointerdown', dismiss); document.removeEventListener('wz:asset-focus-changed', yieldFocus); document.removeEventListener('pointerup', releasePointer); document.removeEventListener('pointercancel', releasePointer); document.removeEventListener('wheel', wheel); window.removeEventListener?.('blur', releasePointer); document.removeEventListener('keydown', dismiss); window.removeEventListener?.('resize', restyle); document.removeEventListener('wz:notice-style-refresh', restyle); document.removeEventListener('wz:region-camera-settled', resumeScope); removeMoveEnd?.(); } }; sync();
+    owner = { viewer, dispose() { styleObserver?.disconnect(); if (styleFrame) cancelAnimationFrame(styleFrame); document.removeEventListener('load', stylesheetLoaded, true); clear(); unsubscribe?.(); unsubscribeRegion?.(); document.removeEventListener('pointerdown', dismiss); document.removeEventListener('wz:asset-focus-changed', yieldFocus); document.removeEventListener('pointerup', releasePointer); document.removeEventListener('pointercancel', releasePointer); document.removeEventListener('wheel', wheel); window.removeEventListener?.('blur', releasePointer); document.removeEventListener('keydown', dismiss); window.removeEventListener?.('resize', restyle); document.removeEventListener('wz:notice-style-refresh', restyle); document.removeEventListener('wz:region-camera-settled', resumeScope); removeMoveEnd?.(); } }; sync();
 }
 export function disposeNoticeLayers() { owner?.dispose(); owner = null; }

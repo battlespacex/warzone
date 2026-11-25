@@ -4,6 +4,13 @@
     <button type="button" id="wz-dev-toggle" class="wz-dev-toggle" aria-controls="wz-dev-body" aria-expanded="false">DEV</button>
     <div id="wz-dev-body" class="wz-dev-body" hidden>
         <div class="wz-dev-heading"><span>DEVELOPER CONTROL PANEL</span><button type="button" id="wz-dev-close" class="wz-dev-action" aria-label="Close developer control panel">Close</button></div>
+        <section class="wz-dev-form-grid" aria-labelledby="wz-dev-ui-visibility-title">
+            <div id="wz-dev-ui-visibility-title" class="wz-dev-label wz-dev-field--full" role="heading" aria-level="3">UI Visibility Controls</div>
+            <label class="wz-dev-field wz-dev-check"><input id="wz-dev-hide-logo" type="checkbox"><span>Hide Logo</span></label>
+            <label class="wz-dev-field wz-dev-check"><input id="wz-dev-hide-header" type="checkbox"><span>Hide Header</span></label>
+            <label class="wz-dev-field wz-dev-check"><input id="wz-dev-hide-dock" type="checkbox"><span>Hide Dock</span></label>
+            <label class="wz-dev-field wz-dev-check"><input id="wz-dev-hide-all" type="checkbox"><span>Hide All Three</span></label>
+        </section>
         <div class="wz-dev-grid">
             <div class="wz-dev-label" data-wz-dev-section="aircraft" data-wz-dev-feature="aircraftTracker">LIVE AIRCRAFT LOOKUP</div>
             <div id="wz-dev-aircraft-search-slot" class="wz-dev-map-tuner" data-wz-dev-section="aircraft"></div>
