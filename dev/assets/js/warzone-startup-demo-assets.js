@@ -380,9 +380,9 @@ function getBankDegrees(asset, route, progress, dtSeconds = 0, entry = null) {
     const headingB = bearingDegrees(p1, p2);
     const turnDelta = signedHeadingDeltaDeg(headingA, headingB);
     const deadZone = Math.max(0, getCssNumber("--wz-startup-air-bank-deadzone", 0.04));
-    // A clockwise heading change (right turn) needs the opposite Cesium
-    // model-roll sign so the aircraft tilts into, not away from, its turn.
-    const targetBank = Math.abs(turnDelta) <= deadZone ? 0 : -Math.sign(turnDelta) * Math.abs(bankLimit);
+    // Heading deltas are positive for right turns. For these entry-model axes,
+    // positive Cesium roll lowers the right wing (banks into a right turn).
+    const targetBank = Math.abs(turnDelta) <= deadZone ? 0 : Math.sign(turnDelta) * Math.abs(bankLimit);
 
     if (!entry || !(dtSeconds > 0)) return targetBank;
 
@@ -418,9 +418,9 @@ function getPathBankDegrees(asset, progress, pointFactory, dtSeconds = 0, entry 
         : Math.max(0.05, getCssNumber("--wz-startup-air-bank-turn-scale", 1));
     const effectiveTurn = Math.sign(turnDelta) *
         Math.max(0, Math.abs(turnDelta) - deadZone);
-    // Geographic heading increases clockwise. Reverse that sign for the
-    // rendered aircraft's roll axis, so right turns bank right and vice versa.
-    const targetBank = -maxBank * Math.tanh(effectiveTurn / sensitivity);
+    // Clockwise/right turns must produce positive roll; counterclockwise/left
+    // turns produce negative roll. The previous minus sign inverted the bank.
+    const targetBank = maxBank * Math.tanh(effectiveTurn / sensitivity);
     const maxRate = isB2
         ? Math.max(0.1, Math.min(30, getCssNumber("--wz-startup-b2-bank-rate-deg-sec", 5)))
         : Infinity;
