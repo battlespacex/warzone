@@ -1,3 +1,5 @@
+import { applyConflictRetentionQuery, isActiveConflictItem, isConflictIntelligenceEvent } from "./conflict-retention.js";
+
 const MAP_EVENT_HISTORY_WINDOW_HOURS = 7 * 24;
 const MAP_EVENT_FULL_RELEVANCE_WINDOW_HOURS = 72;
 const MAP_EVENT_HISTORY_WINDOW_MS = MAP_EVENT_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
@@ -54,6 +56,7 @@ function getEventSourceCount(event = {}) {
 
 function isMapEventHistoricallyRelevant(event = {}, options = {}) {
   const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now();
+  if (isConflictIntelligenceEvent(event)) return isActiveConflictItem(event, now);
   const timestamp = getEventTimestampMs(event);
   if (!Number.isFinite(timestamp)) return true;
 
@@ -96,7 +99,7 @@ function applyGeneralEventDeliveryFilters(query) {
 }
 
 function applyMapEventHistoricalQueryFilter(query, options = {}) {
-  return query.or(buildMapEventHistoricalQueryFilter(options));
+  return applyConflictRetentionQuery(query, options.now).or(buildMapEventHistoricalQueryFilter(options));
 }
 
 export {

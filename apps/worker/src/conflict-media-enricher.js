@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { extractDivContentByClass, extractMiddleEastEyePublication, parseAbsolutePublicationDate } from "./conflict-article-publication.js";
 import {
   formatSourceFailure,
   recordSourceFailure,
@@ -272,15 +273,20 @@ function buildEnrichedItem(item = {}, html = "") {
   const meta = extractMetaMap(html, baseUrl);
   const inlineMedia = extractInlineMedia(html, baseUrl);
   const ldImages = extractLdJsonImages(html, baseUrl);
+  const mee = item.source_id === "middle-east-eye-live";
+  const meeArticle = mee ? html.match(/<article\b[^>]*class=["'][^"']*\blive-blog-update\b[^"']*["'][^>]*>([\s\S]*?)<\/article>/i)?.[1] || "" : "";
+  const articleText = mee ? stripHtml(extractDivContentByClass(meeArticle, "field-field-text")).slice(0, 1200) : "";
+  const publication = mee ? extractMiddleEastEyePublication(html) : null;
   const summary =
+    articleText ||
     item.summary ||
     stripHtml(meta.description || meta["og:description"] || meta["twitter:description"] || "");
   const publishedAt =
+    publication?.value ||
     item.published_at ||
-    meta["article:published_time"] ||
-    meta["og:published_time"] ||
-    meta["article:modified_time"] ||
-    extractTimeValue(html) ||
+    parseAbsolutePublicationDate(meta["article:published_time"]) ||
+    parseAbsolutePublicationDate(meta["og:published_time"]) ||
+    (!mee && parseAbsolutePublicationDate(extractTimeValue(html))) ||
     null;
   const primaryImage =
     meta["og:image"] ||
@@ -312,6 +318,7 @@ function buildEnrichedItem(item = {}, html = "") {
       ...(item.raw && typeof item.raw === "object" ? item.raw : {}),
       summary: summary || item.summary || null,
       published_at: publishedAt || item.published_at || null,
+      _publication_timestamp: publication || item.raw?._publication_timestamp || null,
       og_image: primaryImage || null,
       twitter_image: meta["twitter:image"] || meta["twitter:image:src"] || null,
       article_image: inlineMedia.images[0]?.url || ldImages[0]?.url || null,
@@ -381,5 +388,6 @@ async function enrichConflictItemsWithArticleMetadata(items = []) {
 }
 
 export {
+  buildEnrichedItem,
   enrichConflictItemsWithArticleMetadata,
 };

@@ -32,11 +32,15 @@ async function getUsageRow(supabase, date = getUtcDateKey()) {
   const initial = emptyUsage(date);
   const inserted = await supabase
     .from("copernicus_usage_daily")
-    .upsert(initial, { onConflict: "utc_date" })
+    .upsert(initial, { onConflict: "utc_date", ignoreDuplicates: true })
     .select("*")
     .maybeSingle();
   if (inserted.error) throw inserted.error;
-  return inserted.data || initial;
+  if (inserted.data) return inserted.data;
+  const raced = await supabase.from("copernicus_usage_daily").select("*").eq("utc_date", date).maybeSingle();
+  if (raced.error) throw raced.error;
+  if (!raced.data) throw new Error("Usage row missing after initialization");
+  return raced.data;
 }
 
 function isRateLimited(row = {}, now = new Date()) {
@@ -62,6 +66,11 @@ function canCreateSatellitePreview(row = {}, config = {}) {
 }
 
 async function incrementUsage(supabase, fields = {}, date = getUtcDateKey()) {
+  if (typeof supabase.rpc === "function") {
+    const atomic = await supabase.rpc("stratops_increment_copernicus_usage", { p_date: date, p_deltas: fields });
+    if (!atomic.error) return atomic.data;
+    if (!["PGRST202", "42883"].includes(atomic.error.code)) throw atomic.error;
+  }
   const row = await getUsageRow(supabase, date);
   const payload = {
     updated_at: new Date().toISOString(),

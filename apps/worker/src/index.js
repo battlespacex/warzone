@@ -14,6 +14,10 @@ import { fileURLToPath } from "url";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { supabase } from "./supabase.js";
+import { createSourceRegistryCache } from "./source-registry-cache.js";
+import { conflictEscalationLifetime } from "../../shared/conflict-alert-lifecycle.js";
+import { linkEventSources } from "./event-source-links.js";
+import { saveRawEvidence } from "./raw-evidence-writer.js";
 import crypto from "crypto";
 async function saveRawItem({
     source_name,
@@ -32,10 +36,7 @@ async function saveRawItem({
             .createHash("md5")
             .update((text || "") + (external_id || ""))
             .digest("hex");
-        const { data, error } = await supabase
-            .from("raw_items")
-            .insert([
-                {
+        const { data, error } = await saveRawEvidence(supabase, {
                     source_name,
                     source_type,
                     parser,
@@ -47,10 +48,7 @@ async function saveRawItem({
                     published_at,
                     location_hint,
                     hash
-                }
-            ])
-            .select("id, source_name, url")
-            .maybeSingle();
+                });
         if (error) {
             console.error("RAW INSERT ERROR:", error);
             return null;
@@ -89,6 +87,7 @@ import {
 import { readCopernicusConfig } from "./copernicus-config.js";
 import { cleanupExpiredSatelliteObservations, runCopernicusSatelliteSync } from "./copernicus-runner.js";
 import { MAP_EVENT_HISTORY_WINDOW_MS } from "../../shared/map-event-policy.js";
+import { earliestConflictDate, isActiveConflictItem, isConflictIntelligenceEvent, CONFLICT_EVENT_LOOKUP_FILTER } from "../../shared/conflict-retention.js";
 import { readReportingConfig } from "../../shared/reporting-config.js";
 import { generateScheduledReports } from "../../shared/reporting-service.js";
 import { generateScheduledDailyPipelines } from "./reporting-pipeline-service.js";
@@ -103,16 +102,8 @@ import {
 } from "./intelligence-normalizer.js";
 import { mergeEventQuality, readEventQuality } from "./event-quality.js";
 import { CORROBORATION_STATES } from "../../shared/source-quality-policy.js";
-async function getSourceConfig(sourceName) {
-    if (!sourceName) return null;
-    const { data, error } = await supabase
-        .from("source_registry")
-        .select("*")
-        .eq("source_name", sourceName)
-        .single();
-    if (error) return null;
-    return data;
-}
+const sourceRegistryCache = createSourceRegistryCache({ db: supabase });
+async function getSourceConfig(sourceName) { return sourceRegistryCache.get(sourceName); }
 function buildSourceRegistryRows(feeds = []) {
     return (Array.isArray(feeds) ? feeds : [])
         .filter((feed) => feed && (feed.source_name || feed.name))
@@ -144,6 +135,7 @@ async function syncSourceRegistryFromConfig() {
         return;
     }
     console.log(`[sources] Synced ${rows.length} configured sources into source_registry`);
+    sourceRegistryCache.invalidate();
 }
 const PORT = process.env.PORT || 3000;
 let readNavalDiagnostics = () => ({ status: "starting" });
@@ -941,7 +933,7 @@ async function geocodeLocation(query) {
     }
 }
 async function resolveLocationFromText(text, options = {}) {
-    const catalogLocation = resolveEventLocation({ title: text });
+    const catalogLocation = resolveEventLocation({ title: text }, options);
     if (catalogLocation.precision !== "UNKNOWN") {
         return catalogLocation;
     }
@@ -1112,9 +1104,9 @@ function cleanSourceName(raw) {
     return s.slice(0, 40).trim() || normalized;
 }
 async function resolveRedditLocation(post) {
-    const titleLocation = await resolveLocationFromText(post.title || "", { requireBBox: false });
+    const titleLocation = await resolveLocationFromText(post.title || "", { requireBBox: false, conflictIntelligence: true });
     if (titleLocation) return titleLocation;
-    return resolveLocationFromText((post.selftext || "").slice(0, 500), { requireBBox: false });
+    return resolveLocationFromText((post.selftext || "").slice(0, 500), { requireBBox: false, conflictIntelligence: true });
 }
 function extractGdeltCoords(item) {
     const lat = Number(item.actiongeo_lat || item.locationlat || 0);
@@ -1246,13 +1238,21 @@ function applyEscalation(existing, incoming) {
     const confidence = quality.corroboration_state === CORROBORATION_STATES.DISPUTED
         ? quality.confidence
         : Math.min(96, Math.max(Number(existing?.confidence || 0), Number(incoming?.confidence || 0), quality.confidence));
-    return {
+    const update = {
         confidence,
         status: deriveEventStatus({ confidence, metadata: { ...metadata, event_quality: quality } }),
         source_count: quality.raw_report_count,
-        metadata: { ...metadata, event_quality: quality },
-        updated_at: new Date().toISOString()
+        metadata: {
+            ...metadata, event_quality: quality,
+            ...(isConflictIntelligenceEvent(incoming) ? { intelligence_pipeline: "conflict" } : {}),
+        },
     };
+    if (isConflictIntelligenceEvent(existing) || isConflictIntelligenceEvent(incoming)) {
+        update.occurred_at = earliestConflictDate(existing.occurred_at, incoming.occurred_at);
+    } else {
+        update.updated_at = new Date().toISOString();
+    }
+    return update;
 }
 /* ----------------------------------------
  * Supabase helpers
@@ -1299,9 +1299,8 @@ async function insertEvent(event) {
         if (insertedEvent?.id) {
             await findOrCreateCluster(insertedEvent);
             if (rawItem?.id) {
-                const { error: sourceError } = await supabase
-                    .from("event_sources")
-                    .insert([
+                try {
+                    await linkEventSources(supabase, [
                         {
                             event_id: insertedEvent.id,
                             raw_item_id: rawItem.id,
@@ -1310,9 +1309,7 @@ async function insertEvent(event) {
                             created_at: new Date().toISOString(),
                         }
                     ]);
-                if (sourceError) {
-                    console.error("Event source link error:", sourceError.message);
-                }
+                } catch (sourceError) { console.error("Event source link error:", sourceError.message); }
             }
         }
         console.log("Event inserted:", payload.title);
@@ -1336,6 +1333,8 @@ async function upsertActiveAlert(alert) {
         started_at: alert.started_at || new Date().toISOString(),
         expires_at: alert.expires_at || null
     };
+    if (alert.meta) payload.meta = alert.meta;
+    if (payload.status === "cleared" && alert.meta?.intelligence_pipeline === "conflict") payload.cleared_at = new Date().toISOString();
     const { data, error } = await supabase
         .from("active_alerts")
         .upsert(payload, { onConflict: "alert_key" })
@@ -1486,12 +1485,13 @@ async function findSimilarEvent(event) {
     if (!Number.isFinite(eventTime)) return null;
     const fromTime = new Date(eventTime - 6 * 60 * 60 * 1000).toISOString();
     const toTime = new Date(eventTime + 6 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await supabase
+    let similarityQuery = supabase
         .from("events")
         .select("*")
         .gte("occurred_at", fromTime)
-        .lte("occurred_at", toTime)
-        .limit(20);
+        .lte("occurred_at", toTime);
+    if (isConflictIntelligenceEvent(event)) similarityQuery = similarityQuery.or(CONFLICT_EVENT_LOOKUP_FILTER);
+    const { data, error } = await similarityQuery.limit(20);
     if (error) {
         console.error("Find similar error:", error.message);
         return null;
@@ -1556,6 +1556,26 @@ async function findOrCreateCluster(event) {
     return newCluster;
 }
 async function insertEventIfValid(event) {
+    const conflictReport = ["news", "osint", "conflict", "reddit", "strike"].includes(event?.report_type) &&
+        (!event.metadata?.intelligence_pipeline || event.metadata.intelligence_pipeline === "conflict") &&
+        shouldPromoteToOperationalEvent(event) && isMilitaryRelevantEvent(event);
+    if (conflictReport) {
+        if (!isActiveConflictItem(event)) return false;
+        event = {
+            ...event,
+            metadata: {
+                ...event.metadata,
+                intelligence_pipeline: "conflict",
+                timeline: event.metadata?.timeline || {
+                    occurred_at: event.occurred_at,
+                    published_at: event.report_type === "conflict" ? null : event.occurred_at,
+                    ingested_at: new Date().toISOString(),
+                    timestamp_basis: event.report_type === "conflict" ? "source_occurrence" : "source_publication",
+                },
+            },
+        };
+    }
+    if (isConflictIntelligenceEvent(event) && !isActiveConflictItem(event)) return false;
     event = normalizeEventRowForStorage(event);
     if (!event) return false;
     if (!Number.isFinite(event.lat) || !Number.isFinite(event.lon)) return false;
@@ -1602,7 +1622,8 @@ async function insertEventIfValid(event) {
                 summary: event.summary,
                 source_name: event.source_name,
                 source_url: event.source_url,
-                started_at: existing.occurred_at
+                started_at: existing.occurred_at,
+                ...(conflictEscalationLifetime({ ...existing, ...update }) || {})
             });
         }
         console.log("Merged+Escalated:", existing.title);
@@ -1613,13 +1634,9 @@ async function insertEventIfValid(event) {
 async function pruneStaleData() {
     const now = new Date();
     // Keep the same seven-day working history used by the general map event pipeline.
-    const eventsCutoff = new Date(now.getTime() - MAP_EVENT_HISTORY_WINDOW_MS).toISOString();
-    const { error: eventsError } = await supabase
-        .from("events")
-        .delete()
-        .lt("occurred_at", eventsCutoff);
-    if (eventsError) console.error("Events prune error:", eventsError.message);
-    else console.log("[prune] Events older than seven days removed");
+    const maintenance = await supabase.rpc("stratops_prune_working_history");
+    if (maintenance.error) console.warn("[prune] Protected event/raw cleanup unavailable; install the reviewed maintenance SQL. Unsafe deletes skipped.");
+    else console.log("[prune] Protected working history:", JSON.stringify(maintenance.data));
     // Aircraft tracks older than 72 hours
     const aircraftCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
     const { error: aircraftError } = await supabase
@@ -1629,13 +1646,7 @@ async function pruneStaleData() {
     if (aircraftError) console.error("Aircraft prune error:", aircraftError.message);
     else console.log("[prune] Aircraft tracks older than 72 hours removed");
     // Preserve source material for the full map working window.
-    const rawCutoff = new Date(now.getTime() - MAP_EVENT_HISTORY_WINDOW_MS).toISOString();
-    const { error: rawError } = await supabase
-        .from("raw_items")
-        .delete()
-        .lt("created_at", rawCutoff);
-    if (rawError) console.error("Raw items prune error:", rawError.message);
-    else console.log("[prune] Raw items older than seven days removed");
+    // Raw rows with surviving attribution/report dependencies are handled by the RPC above.
     // Event clusters older than 7 days
     const clusterCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { error: clusterError } = await supabase
@@ -1688,7 +1699,7 @@ function normalizeAcledEvent(item, feed) {
         summary: item.sub_event_type || item.notes || "ACLED conflict event",
         source_name: "ACLED",
         source_url: "https://acleddata.com",
-        occurred_at: normalizeOccurredAt(item.event_date),
+        occurred_at: earliestConflictDate(item.event_date),
         lat: Number(item.latitude),
         lon: Number(item.longitude),
         location_label: [item.location, item.admin1, item.country].filter(Boolean).join(", ") || null,
@@ -1749,7 +1760,7 @@ function normalizeUcdpEvent(item, feed) {
         ).slice(0, 1500),
         source_name: "UCDP",
         source_url: "https://ucdp.uu.se/",
-        occurred_at: normalizeOccurredAt(item.date_start || item.date_end),
+        occurred_at: earliestConflictDate(item.date_start || item.date_end),
         lat,
         lon,
         location_label: [item.where_prec === 1 ? item.where_description : "", country]
@@ -1959,7 +1970,7 @@ async function normalizeRssItem(item, feed) {
     const title = rssTag(item, "title") || rssTag(item, "summary") || "";
     const summary = rssTag(item, "description") || rssTag(item, "content") || rssTag(item, "content:encoded") || rssTag(item, "summary") || "";
     const link = rssTag(item, "link") || rssTag(item, "id") || "";
-    const pubDate = rssTag(item, "pubDate") || rssTag(item, "published") || rssTag(item, "updated") || rssTag(item, "dc:date") || "";
+    const pubDate = rssTag(item, "pubDate") || rssTag(item, "published") || rssTag(item, "dc:date") || "";
     const fullText = `${title} ${summary}`;
     if (!passesMilitaryFilter(fullText)) return null;
     if (!hasOperationalEventSignal(fullText) || isIntelWireOnlyNewsText(fullText)) return null;
@@ -1975,8 +1986,8 @@ async function normalizeRssItem(item, feed) {
         ? deriveCyberStatusFromText(fullText)
         : "unknown";
     const resolvedLocation = feed.geocode === true
-        ? await resolveLocationFromText(`${cleanTitle} ${cleanSummary.slice(0, 500)}`, { requireBBox: false })
-        : resolveEventLocation({ title: cleanTitle, summary: cleanSummary });
+        ? await resolveLocationFromText(`${cleanTitle} ${cleanSummary.slice(0, 500)}`, { requireBBox: false, conflictIntelligence: true })
+        : resolveEventLocation({ title: cleanTitle, summary: cleanSummary }, { conflictIntelligence: true });
     const mapEligible = resolvedLocation?.mapEligible === true;
     const imageUrl =
         rssAttr(item, "media:thumbnail", "url") ||
@@ -1996,7 +2007,7 @@ async function normalizeRssItem(item, feed) {
         summary: cleanSummary,
         source_name: feed.source_name || feed.name || "RSS",
         source_url: link || feed.url || "",
-        occurred_at: normalizeOccurredAt(pubDate),
+        occurred_at: earliestConflictDate(pubDate),
         lat: mapEligible ? Number(resolvedLocation.lat) : null,
         lon: mapEligible ? Number(resolvedLocation.lon) : null,
         location_label: resolvedLocation?.label || null,
@@ -2855,7 +2866,7 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
     const cleanedText = stripTelegramChannelEcho(stripTelegramPromotionNoise(rawText), channelKey);
     if (!cleanedText) return null;
     if (!isRelevantTelegramText(cleanedText, feed)) return null;
-    const location = await resolveLocationFromText(cleanedText, { requireBBox: false }) || {
+    const location = await resolveLocationFromText(cleanedText, { requireBBox: false, conflictIntelligence: true }) || {
         lat: null,
         lon: null,
         label: null,
@@ -2882,7 +2893,7 @@ async function normalizeTelegramEvent(msg, feed, channelKey) {
         summary,
         source_name: cleanSourceName(`Telegram / ${channelKey}`),
         source_url: buildTelegramMessageUrl(channelKey, msg.id),
-        occurred_at: msg.date?.toISOString?.() || new Date().toISOString(),
+        occurred_at: earliestConflictDate(msg.date?.toISOString?.()),
         lat: mapEligible ? Number(location.lat) : null,
         lon: mapEligible ? Number(location.lon) : null,
         location_label: location.label || null,
@@ -3092,7 +3103,7 @@ function getXPlaceLocation(place = null) {
 async function resolveXLocation(post = {}, placeMap = new Map()) {
     // A post's geotag describes where the publisher posted, not necessarily where the incident occurred.
     // Incident placement is derived from the report text only.
-    return resolveLocationFromText(extractXText(post), { requireBBox: false });
+    return resolveLocationFromText(extractXText(post), { requireBBox: false, conflictIntelligence: true });
 }
 async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new Map()) {
     const rawText = extractXText(post);
@@ -3127,7 +3138,7 @@ async function normalizeXPost(post, feed, authorMap = new Map(), placeMap = new 
         source_url: username
             ? `https://x.com/${username}/status/${post.id}`
             : `https://x.com/i/web/status/${post.id}`,
-        occurred_at: post?.created_at || new Date().toISOString(),
+        occurred_at: earliestConflictDate(post?.created_at),
         lat: mapEligible ? Number(location.lat) : null,
         lon: mapEligible ? Number(location.lon) : null,
         location_label: location.label || null,
@@ -3323,7 +3334,7 @@ async function normalizeRedditPost(post, feed) {
         source_url: post.permalink ? `https://www.reddit.com${post.permalink}` : feed.url,
         occurred_at: post.created_utc
             ? new Date(post.created_utc * 1000).toISOString()
-            : new Date().toISOString(),
+            : null,
         lat: mapEligible ? Number(location.lat) : null,
         lon: mapEligible ? Number(location.lon) : null,
         location_label: location.label || null,
@@ -4555,6 +4566,7 @@ async function runWorkerCycle() {
     });
 }
 async function runConflictFeedCycle() {
+    console.log("[db-health] source registry counters:", JSON.stringify(sourceRegistryCache.metrics));
     if (!CONFLICT_FEED_ENABLED) return;
     if (isConflictFeedRunning) {
         console.log("[conflict] Previous conflict feed sync still running, skipping this tick");

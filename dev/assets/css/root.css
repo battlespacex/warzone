@@ -1757,7 +1757,7 @@
 
         /* NAVAL GLB SIZE — normal and Focus share this curve */
         --warzone-live-naval-model-scale-min-carrier: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-carrier: 26;
+        --warzone-live-naval-model-scale-max-carrier: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-amphibious: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-amphibious: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-cruiser: var(--warzone-live-naval-model-scale-min);
@@ -1771,11 +1771,11 @@
         --warzone-live-naval-model-scale-min-intelligence: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-intelligence: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-ssbn: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-ssbn: 9;
+        --warzone-live-naval-model-scale-max-ssbn: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-ssn: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-ssn: 9;
+        --warzone-live-naval-model-scale-max-ssn: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-ssk: var(--warzone-live-naval-model-scale-min);
-        --warzone-live-naval-model-scale-max-ssk: 9;
+        --warzone-live-naval-model-scale-max-ssk: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-aip_submarine: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-aip_submarine: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-submarine: var(--warzone-live-naval-model-scale-min);
@@ -2480,6 +2480,7 @@
     --wz-notam-marker-border-width: 2px;
     --wz-notam-marker-radius: 2px;
     --wz-notam-marker-background: transparent;
+    --wz-notam-marker-opacity: 1;
     --wz-notam-marker-hover-scale: 1.08;
     --wz-notam-marker-selected-scale: 1.15;
     --wz-notam-connector-color: initial;

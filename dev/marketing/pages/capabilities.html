@@ -66,7 +66,7 @@
             <div class="chapter-media" data-reveal>
               <figure class="fig">
                 <div class="img-slot r-4x3 real-shot" data-slot="CAP-AIR"><img
-                    src="/assets/images/web/stratops-aircraft-telemetry.webp"
+                    src="/assets/images/web/mkt-img-air-tracker-3.webp"
                     alt="A focused military KC-135R 3D aircraft with telemetry panel in StratOps" loading="lazy"
                     decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">AIR /
                     FOCUSED TRACK</span></div>
@@ -74,28 +74,36 @@
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>AIR</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Military aviation</h2>
-              <p class="chapter-tag">Follow the broadcast. Check the identity.</p>
+              <div class="chapter-code">
+                <h2>Air Tracker</h2>
+                <p class="chapter-tag">Follow the broadcast. Check the identity.</p>
+              </div>
               <p class="chapter-lead">Aircraft observations come from several public ADS-B and aggregator networks.
                 StratOps sets each one against identity references and a military taxonomy, so a contact arrives with
                 its evidence attached, not just an icon.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3><button class="faq-trigger" type="button" id="fea-q1" aria-expanded="false" aria-controls="fea-q1">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q1" role="region" aria-labelledby="fea-q1">
+                  <ul class="chapter-details-body">
                     <li>Search and filter contacts, then focus a single track in 3D.</li>
                     <li>Read altitude, speed and heading next to the source and the age of the last observation.</li>
                     <li>Check identity confidence and any registration, operator or type fields. Ambiguous results stay
                       ambiguous.</li>
                     <li>Open eligible history, replay a track, and return to the current picture.</li>
+                    <li class="caution"><b>Read it right</b>No signal does not mean no aircraft. A gap in ADS-B
+                      coverage, or a military model on screen, says nothing about activity.</li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>No signal does not mean no aircraft. A gap in ADS-B coverage, or a
-                military model on screen, says nothing about activity.</p>
-              <div class="data-strip" aria-label="Information types"><span>Aircraft observations</span><span>Identity
-                  evidence</span><span>Classification confidence</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Aircraft observations</span>
+                <span>Identity evidence</span>
+                <span>Classification confidence</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="sea">
@@ -110,135 +118,176 @@
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>SEA</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Naval activity</h2>
-              <p class="chapter-tag">Two layers. Never mixed.</p>
+              <div class="chapter-code">
+                <h2>Naval Activity</h2>
+                <p class="chapter-tag">Two layers. Never mixed.</p>
+              </div>
               <p class="chapter-lead">The naval picture has two kinds of information that are easy to confuse. AIS
                 contacts are positions that vessels broadcast. Publications are statements about exercises, deployments
                 and port visits. StratOps keeps them in separate lanes.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q2" aria-expanded="false" aria-controls="fea-q2">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q2" role="region" aria-labelledby="fea-q2">
+                  <ul class="chapter-details-body">
                     <li>Filter and select AIS contacts, then inspect details, contact age and eligible history.</li>
                     <li>Open the naval activity widget to browse publications by type, geography and date, with source
-                      links
-                      and expiry.</li>
+                      links and expiry.</li>
                     <li>See a published point, port or area only where the source actually supplied one.</li>
                     <li>Review identity confidence and conflicts before a contact earns a specialized ship silhouette.
                     </li>
+                    <li class="caution"><b>Read it right</b>A publication’s port or region is not a ship’s position, and
+                      an AIS ship-type code does not confirm a warship.</li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>A publication’s port or region is not a ship’s position, and an AIS
-                ship-type code does not confirm a warship.</p>
-              <div class="data-strip" aria-label="Information types"><span>Vessel observations</span><span>Published
-                  activity</span><span>Identity context</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Vessel observations</span>
+                <span>Published activity</span>
+                <span>Identity context</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="orbit">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
                 <div class="img-slot r-4x3 real-shot" data-slot="CAP-ORBIT"><img
-                    src="/assets/images/web/stratops-orbital-tracking.webp"
+                    src="/assets/images/web/mkt-img-sat-2.webp"
                     alt="StratOps 3D satellite models with predicted orbital arcs and contextual metadata"
-                    loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption"
-                    aria-hidden="true">SPACE / PROPAGATED ORBIT</span></div>
+                    loading="lazy" decoding="async" width="1600" height="900">
+                  <span class="shot-caption" aria-hidden="true">SPACE / PROPAGATED ORBIT</span>
+                </div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Orbital intelligence in StratOps.</span></figcaption>
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>SPACE</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Orbital intelligence</h2>
-              <p class="chapter-tag">Predict the pass. Know the source.</p>
+              <div class="chapter-code">
+                <h2>Orbital intelligence</h2>
+                <p class="chapter-tag">Predict the pass. Know the source.</p>
+              </div>
               <p class="chapter-lead">Public orbital catalogs become moving objects. StratOps propagates published
                 elements to show where military-associated and dual-use satellites are predicted to be, and keeps the
                 age of that data in view.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q3" aria-expanded="false" aria-controls="fea-q3">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q3" role="region" aria-labelledby="fea-q3">
+                  <ul class="chapter-details-body">
                     <li>Search the catalog and select a satellite by its NORAD identity.</li>
                     <li>Focus, follow and release a satellite, with orbital details and footprint where shown.</li>
                     <li>Trace predicted ground tracks computed from the published elements.</li>
                     <li>Keep imagery apart: observations have their own capture dates and sources.</li>
+                    <li class="caution"><b>Read it right</b>A position here is a prediction. A footprint is geometry,
+                      not measured sensor range, and a 3D model is a visual aid, not evidence of payload or mission.
+                    </li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>A position here is a prediction. A footprint is geometry, not
-                measured sensor range, and a 3D model is a visual aid, not evidence of payload or mission.</p>
-              <div class="data-strip" aria-label="Information types"><span>Orbital predictions</span><span>Ground
-                  tracks</span><span>Catalog metadata</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Orbital predictions</span>
+                <span>Ground tracks</span>
+                <span>Catalog metadata</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="notam">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-NOTAM" role="img"
-                  aria-label="Image placeholder CAP-NOTAM"><span class="slot-label"><b>IMAGE SLOT CAP-NOTAM</b><i>4:3 ·
-                      1400×1050</i><em>A restriction polygon on the globe with its notice text and validity
-                      window.</em></span></div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-ORBIT"><img
+                    src="/assets/images/web/mkt-img-sat-2.webp"
+                    alt="A restriction polygon on the globe with its notice text and validity window." loading="lazy"
+                    decoding="async" width="1600" height="900">
+                  <span class="shot-caption" aria-hidden="true">IMAGE SLOT CAP-NOTAM</span>
+                </div>
                 <figcaption class="fig-cap"><b>FIG</b><span>NOTAM &amp; airspace in StratOps.</span></figcaption>
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>AIRSPACE</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>NOTAM &amp; airspace</h2>
-              <p class="chapter-tag">Find the restriction in space and time.</p>
+              <div class="chapter-code">
+                <h2>NOTAM &amp; airspace</h2>
+                <p class="chapter-tag">Find the restriction in space and time.</p>
+              </div>
               <p class="chapter-lead">Notices are written for pilots, not for maps. StratOps keeps the original text and
                 source, then draws the geography the notice actually supplies, so you can see where a restriction sits
                 and when it applies.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q4" aria-expanded="false" aria-controls="fea-q4">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q4" role="region" aria-labelledby="fea-q4">
+                  <ul class="chapter-details-body">
                     <li>Search and filter notices, then select one to focus its geometry.</li>
                     <li>Read the published text, source, status and effective period side by side.</li>
                     <li>Follow replacement and cancellation links between records.</li>
                     <li>Open Airspace Status for available airport delays and restrictions with their published details,
-                      and switch
-                      on maritime warning areas where enabled.</li>
+                      and switch on maritime warning areas where enabled.</li>
+                    <li class="caution"><b>Read it right</b>Q-line locations and radii can be approximate, and a notice
+                      in one
+                      place is not a nationwide closure. For flight decisions, use the official authority.</li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>Q-line locations and radii can be approximate, and a notice in one
-                place is not a nationwide closure. For flight decisions, use the official authority.</p>
-              <div class="data-strip" aria-label="Information types"><span>Published notices</span><span>Validity
-                  windows</span><span>Airspace status</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Published notices</span>
+                <span>Validity windows</span>
+                <span>Airspace status</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="gnss">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
                 <div class="img-slot r-4x3 real-shot" data-slot="CAP-GNSS"><img
-                    src="/assets/images/web/stratops-gnss-world.webp"
+                    src="/assets/images/web/mkt-img-gnss-1.webp"
                     alt="GNSS interference estimate hexagon grid over the globe in StratOps" loading="lazy"
-                    decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">SIGNALS /
-                    GNSS CONTEXT</span></div>
+                    decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">
+                    SIGNALS / GNSS CONTEXT</span></div>
                 <figcaption class="fig-cap"><b>FIG</b><span>GNSS interference in StratOps.</span></figcaption>
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>SIGNALS</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>GNSS interference</h2>
-              <p class="chapter-tag">See where navigation degrades.</p>
+              <div class="chapter-code">
+                <h2>GNSS Interference</h2>
+                <p class="chapter-tag">See where navigation degrades.</p>
+              </div>
               <p class="chapter-lead">StratOps maps summaries of navigation-signal degradation as severity-colored
                 cells. Regional patterns show up at a glance, and so do the limits of the data behind them.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q5" aria-expanded="false" aria-controls="fea-q5">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q5" role="region" aria-labelledby="fea-q5">
+                  <ul class="chapter-details-body">
                     <li>Switch the layer on and choose a supported observation period.</li>
                     <li>Filter by geography and severity.</li>
                     <li>Hover or select a cell to read the data behind it, including source health and coverage.</li>
                     <li>Read the layer beside air tracks and notices for regional context.</li>
+                    <li class="caution"><b>Read it right</b>Degradation is not a located jammer and does not confirm
+                      spoofing. Rolling 24, 48 and 72-hour views can have partial coverage, and the layer reports it
+                      when they do.
+                    </li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>Degradation is not a located jammer and does not confirm spoofing.
-                Rolling 24, 48 and 72-hour views can have partial coverage, and the layer reports it when they do.</p>
-              <div class="data-strip" aria-label="Information types"><span>Signal degradation</span><span>Regional
-                  coverage</span><span>Observation periods</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Signal degradation</span>
+                <span>Regional coverage</span>
+                <span>Observation periods</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="conflict">
@@ -252,28 +301,38 @@
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>EVENTS</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Conflict intelligence</h2>
-              <p class="chapter-tag">From an incident to a theater.</p>
+              <div class="chapter-code">
+                <h2>Conflict intelligence</h2>
+                <p class="chapter-tag">From an incident to a theater.</p>
+              </div>
               <p class="chapter-lead">Reported events become a sourced, filterable layer. Strikes, drones and missile
                 activity are placed by what the report says, with location precision shown, so each incident reads in
                 the context of its region.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q6" aria-expanded="false" aria-controls="fea-q6">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q6" role="region" aria-labelledby="fea-q6">
+                  <ul class="chapter-details-body">
                     <li>Toggle event categories and select a marker for its source, date, severity and available media.
                     </li>
                     <li>Browse the Intel Wire and open article details with source links.</li>
                     <li>Check regional hotspots and event counts.</li>
                     <li>Review alert timing and areas where a supported alert feed is configured.</li>
+                    <li class="caution"><b>Read it right</b>A marker is a report, not telemetry. Syndicated repeats are
+                      not independent confirmation, and an animation is not radar detection.
+                    </li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>A marker is a report, not telemetry. Syndicated repeats are not
-                independent confirmation, and an animation is not radar detection.</p>
-              <div class="data-strip" aria-label="Information types"><span>Event reports</span><span>Regional
-                  context</span><span>Alert status</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Event reports</span>
+                <span>Regional context</span>
+                <span>Alert status</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="aoi">
@@ -287,94 +346,130 @@
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>GEOSPATIAL</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Area of interest</h2>
-              <p class="chapter-tag">Ask a question about a place.</p>
+              <div class="chapter-code">
+                <h2>Area of Interest</h2>
+                <p class="chapter-tag">Ask a question about a place.</p>
+              </div>
               <p class="chapter-lead">Sometimes the subject is a place, not a platform. Draw an area and StratOps
                 summarizes what is loaded in and around it, alongside reference context for strategic sites and
                 environmental events.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q7" aria-expanded="false" aria-controls="fea-q7">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q7" role="region" aria-labelledby="fea-q7">
+                  <ul class="chapter-details-body">
                     <li>Activate the tool, draw a polygon and adjust its vertices.</li>
                     <li>Scan for the aircraft, vessels, events and bases currently available in that area.</li>
                     <li>Read the summary, then reshape the area as the question changes.</li>
                     <li>Add reference layers: military bases, thermal and fire activity, seismic events.</li>
+                    <li class="caution"><b>Read it right</b>Results reflect loaded data, filters and location precision,
+                      and an empty scan is not proof of absence. A base marker or range ring is reference context, not
+                      current
+                      force presence.
+                    </li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>Results reflect loaded data, filters and location precision, and an
-                empty scan is not proof of absence. A base marker or range ring is reference context, not current force
-                presence.</p>
-              <div class="data-strip" aria-label="Information types"><span>Area summaries</span><span>Reference
-                  context</span><span>Geographic overlays</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Area summaries</span>
+                <span>Reference context</span>
+                <span>Geographic overlays</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="imagery">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-IMAGERY" role="img"
-                  aria-label="Image placeholder CAP-IMAGERY"><span class="slot-label"><b>IMAGE SLOT
-                      CAP-IMAGERY</b><i>4:3 · 1400×1050</i><em>An event marker with its linked satellite image reference
-                      and acquisition metadata.</em></span></div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-ORBIT"><img
+                    src="/assets/images/web/mkt-img-sat-obs-1.webp"
+                    alt="An event marker with its linked satellite image reference and acquisition metadata."
+                    loading="lazy" decoding="async" width="1600" height="900">
+                  <span class="shot-caption" aria-hidden="true">IMAGE SLOT CAP-IMAGERY</span>
+                </div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Satellite observations in StratOps.</span></figcaption>
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>IMAGERY</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Satellite observations</h2>
-              <p class="chapter-tag">Know when the image was taken.</p>
+              <div class="chapter-code">
+                <h2>Satellite Observations</h2>
+                <p class="chapter-tag">Know when the image was taken.</p>
+              </div>
               <p class="chapter-lead">Imagery is evidence of a place at a time. StratOps links eligible image references
                 to events and shows when each was acquired and where it came from.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q8" aria-expanded="false" aria-controls="fea-q8">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q8" role="region" aria-labelledby="fea-q8">
+                  <ul class="chapter-details-body">
                     <li>Open eligible event media and source previews.</li>
                     <li>Read acquisition date, source and available metadata.</li>
                     <li>Keep image time separate from a satellite’s orbital position.</li>
+                    <li class="caution"><b>Read it right</b>Availability depends on configuration and access. An image
+                      reference is context, not automatic confirmation of an attack or of a military object.
+                    </li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>Availability depends on configuration and access. An image
-                reference is context, not automatic confirmation of an attack or of a military object.</p>
-              <div class="data-strip" aria-label="Information types"><span>Image acquisition
-                  dates</span><span>Event-linked imagery</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Image acquisition dates</span>
+                <span>Event-linked imagery</span>
+              </div>
             </div>
           </article>
           <article class="chapter" id="cyber">
             <div class="chapter-media" data-reveal>
               <figure class="fig">
-                <div class="img-slot is-placeholder r-4x3" data-slot="CAP-CYBER" role="img"
-                  aria-label="Image placeholder CAP-CYBER"><span class="slot-label"><b>IMAGE SLOT CAP-CYBER</b><i>4:3 ·
-                      1400×1050</i><em>The cyber status feed beside a regional view with a disruption observation
-                      selected.</em></span></div>
+                <div class="img-slot r-4x3 real-shot" data-slot="CAP-ORBIT"><img
+                    src="/assets/images/web/mkt-img-notam-1.webp"
+                    alt="The cyber status feed beside a regional view with a disruption observation selected."
+                    loading="lazy" decoding="async" width="1600" height="900">
+                  <span class="shot-caption" aria-hidden="true">IMAGE SLOT CAP-CYBER</span>
+                </div>
                 <figcaption class="fig-cap"><b>FIG</b><span>Cyber &amp; infrastructure in StratOps.</span></figcaption>
               </figure>
             </div>
             <div class="chapter-body" data-reveal>
-              <p class="chapter-code"><b>INFRA</b><span class="clippath-3">PUBLIC-SOURCE</span></p>
-              <h2>Cyber &amp; infrastructure</h2>
-              <p class="chapter-tag">Add the infrastructure layer.</p>
+              <div class="chapter-code">
+                <h2>Cyber &amp; Infrastructure</h2>
+                <p class="chapter-tag">Add the infrastructure layer.</p>
+              </div>
               <p class="chapter-lead">Cyber and infrastructure reporting joins the picture as sourced context:
                 advisories, published threat intelligence and network-disruption observations, filed by category, time
                 and supported location.</p>
-              <details class="chapter-details">
-                <summary>Explore detailed capabilities</summary>
-                <div class="chapter-details-body">
-                  <ul>
+              <div class="faq-item">
+                <h3>
+                  <button class="faq-trigger" type="button" id="fea-q9" aria-expanded="false" aria-controls="fea-q9">
+                    Where does the data come from?
+                    <i aria-hidden="true"></i>
+                  </button>
+                </h3>
+                <div class="faq-panel" id="fea-q9" role="region" aria-labelledby="fea-q9">
+                  <ul class="chapter-details-body">
                     <li>Open the cyber status feed and browse reports by category, source and date.</li>
                     <li>Read geographic attribution and the evidence offered with each item.</li>
                     <li>Place internet-disruption observations next to regional events.</li>
+                    <li class="caution"><b>Read it right</b>A vulnerability listing or threat report is not an attack,
+                      and a
+                      traffic dip does not prove a countrywide incident. Some traffic metrics reflect billing country,
+                      not the
+                      target.
+                    </li>
                   </ul>
                 </div>
-              </details>
-              <p class="caution"><b>Read it right</b>A vulnerability listing or threat report is not an attack, and a
-                traffic dip does not prove a countrywide incident. Some traffic metrics reflect billing country, not the
-                target.</p>
-              <div class="data-strip" aria-label="Information types"><span>Infrastructure reports</span><span>Network
-                  observations</span><span>Category metadata</span></div>
+              </div>
+              <div class="data-strip" aria-label="Information types">
+                <span>Infrastructure reports</span>
+                <span>Network observations</span>
+                <span>Category metadata</span>
+              </div>
             </div>
           </article>
         </section>
@@ -411,6 +506,7 @@
                   polygon does not place a vessel inside it.</small>
               </div>
             </div>
+
             <div class="wide-fig" data-reveal>
               <figure class="fig">
                 <div class="img-slot r-21x9 real-shot" data-slot="CAP-LAYERS"><img

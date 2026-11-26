@@ -1,5 +1,7 @@
 ﻿// File Path: /assets/js/supabase.js
 import { createClient } from "@supabase/supabase-js";
+import { collectMapEventPages } from "../../../apps/shared/map-event-pages.js";
+import { isConflictIntelligenceEvent, isActiveConflictItem, applyConflictRetentionQuery } from "../../../apps/shared/conflict-retention.js";
 import {
     MAP_EVENT_HISTORY_WINDOW_HOURS,
     applyGeneralEventDeliveryFilters,
@@ -45,7 +47,7 @@ const REPORTS_API_BASE =
 const EVENTS_HISTORY_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const EVENTS_HISTORY_WINDOW_MS = EVENTS_HISTORY_WINDOW_HOURS * 60 * 60 * 1000;
 const EVENTS_INITIAL_LIMIT = 2000;
-export const MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS = 48;
+export const MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS = 72;
 export const MAP_EVENTS_BOOTSTRAP_LIMIT = 800;
 const MAP_EVENTS_CACHE_TTL_MS = 2 * 60 * 1000;
 const MAP_EVENTS_SELECT_COLUMNS = [
@@ -63,6 +65,7 @@ const AIRCRAFT_HISTORY_LIMIT = 1000;
 let __warnedActiveAlertsUnavailable = false;
 let __warnedGnssUnavailable = false;
 const __activeApiRequests = new Map();
+let __mapEventsRequestGeneration = 0;
 const __mapEventsRegionCache = new Map();
 
 function normalizeMapRegion(region = {}) {
@@ -92,22 +95,28 @@ function getMapEventsCacheKey(region = {}) {
     ].join(":");
 }
 
+function retainMapEventRows(rows = []) {
+    let otherCount = 0;
+    return rows.filter((row) => {
+        if (isConflictIntelligenceEvent(row)) return isActiveConflictItem(row);
+        return ++otherCount <= MAP_EVENTS_BOOTSTRAP_LIMIT;
+    });
+}
 function mergeMapEventRows(rows = [], incoming = null) {
     const incomingId = String(incoming?.id || "").trim();
-    if (!incomingId) return rows.slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
-    return [incoming, ...rows.filter((row) => String(row?.id || "").trim() !== incomingId)]
-        .slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
+    if (!incomingId) return retainMapEventRows(rows);
+    return retainMapEventRows([incoming, ...rows.filter((row) => String(row?.id || "").trim() !== incomingId)]);
 }
 
 function filterLegacyMapEventsToRegion(rows = [], region = {}) {
     const bounds = region.bounds || {};
-    return rows.filter((event) => {
+    return retainMapEventRows(rows.filter((event) => {
         const lat = Number(event?.lat);
         const lon = Number(event?.lon);
         return Number.isFinite(lat) && Number.isFinite(lon) &&
             lat >= bounds.minLat && lat <= bounds.maxLat &&
             lon >= bounds.minLon && lon <= bounds.maxLon;
-    }).slice(0, MAP_EVENTS_BOOTSTRAP_LIMIT);
+    }));
 }
 
 function toAbsoluteApiUrl(value = "", apiBase = REPORTS_API_BASE) {
@@ -467,6 +476,12 @@ export const api = {
     },
 
     async getMapEvents(regionInput = {}, options = {}) {
+        const generation = ++__mapEventsRequestGeneration;
+        const assertCurrent = () => {
+            if (generation !== __mapEventsRequestGeneration || options.signal?.aborted) {
+                throw new DOMException("Map request superseded", "AbortError");
+            }
+        };
         const region = normalizeMapRegion(regionInput);
         if (!region) throw new Error("Map events require valid region bounds");
         const cacheKey = getMapEventsCacheKey(region);
@@ -476,29 +491,37 @@ export const api = {
         }
         const cutoffIso = new Date(Date.now() - (MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS * 60 * 60 * 1000)).toISOString();
         if (!API_BASE) {
-            let eventsQuery = supabase
-                .from("events")
-                .select(MAP_EVENTS_SELECT_COLUMNS)
-                .gte("occurred_at", cutoffIso)
-                .gte("lat", region.bounds.minLat)
-                .lte("lat", region.bounds.maxLat)
-                .gte("lon", region.bounds.minLon)
-                .lte("lon", region.bounds.maxLon);
-            eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
-            const { data, error } = await eventsQuery
-                .order("is_breaking", { ascending: false })
-                .order("priority_score", { ascending: false, nullsFirst: false })
-                .order("occurred_at", { ascending: false })
-                .limit(MAP_EVENTS_BOOTSTRAP_LIMIT);
-            const rows = data || [];
-            if (!error) {
-                __mapEventsRegionCache.set(cacheKey, {
-                    rows,
-                    storedAt: Date.now(),
-                    meta: { region_id: region.id, window_hours: MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS, limit: MAP_EVENTS_BOOTSTRAP_LIMIT },
-                });
+            const rows = [];
+            for (let offset = 0; ; offset += MAP_EVENTS_BOOTSTRAP_LIMIT) {
+                assertCurrent();
+                let eventsQuery = supabase
+                    .from("events")
+                    .select(MAP_EVENTS_SELECT_COLUMNS)
+                    .gte("occurred_at", cutoffIso)
+                    .gte("lat", region.bounds.minLat)
+                    .lte("lat", region.bounds.maxLat)
+                    .gte("lon", region.bounds.minLon)
+                    .lte("lon", region.bounds.maxLon);
+                eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
+                eventsQuery = applyConflictRetentionQuery(eventsQuery);
+                const { data, error } = await eventsQuery
+                    .order("is_breaking", { ascending: false })
+                    .order("priority_score", { ascending: false, nullsFirst: false })
+                    .order("occurred_at", { ascending: false })
+                    .order("id", { ascending: true })
+                    .range(offset, offset + MAP_EVENTS_BOOTSTRAP_LIMIT - 1);
+                if (error) return { data: [], error };
+                rows.push(...(data || []));
+                if ((data || []).length < MAP_EVENTS_BOOTSTRAP_LIMIT) break;
             }
-            return { data: rows, error, meta: { region_id: region.id } };
+            assertCurrent();
+            const retainedRows = retainMapEventRows(rows);
+            __mapEventsRegionCache.set(cacheKey, {
+                rows: retainedRows,
+                storedAt: Date.now(),
+                meta: { region_id: region.id, window_hours: MAP_EVENTS_BOOTSTRAP_WINDOW_HOURS, limit: MAP_EVENTS_BOOTSTRAP_LIMIT },
+            });
+            return { data: retainedRows, error: null, meta: { region_id: region.id } };
         }
         const params = new URLSearchParams({
             region_id: region.id,
@@ -533,7 +556,13 @@ export const api = {
         } else {
             json = await readJsonResponse(res, "Map events fetch");
         }
-        const rows = Array.isArray(json.events) ? json.events : [];
+        const rows = retainMapEventRows(await collectMapEventPages(json, async (offset) => {
+            assertCurrent();
+            params.set("offset", String(offset));
+            const page = await fetchLatest("events:map", `${API_BASE}/events/map?${params.toString()}`, options);
+            return readJsonResponse(page, "Map events page fetch");
+        }));
+        assertCurrent();
         const meta = { ...(json.meta || {}), cached: false };
         __mapEventsRegionCache.set(cacheKey, { rows, meta, storedAt: Date.now() });
         return { data: rows, error: null, meta };

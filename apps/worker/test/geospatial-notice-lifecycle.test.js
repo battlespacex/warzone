@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {CustomDataSource,Color,StripeMaterialProperty,Cartesian3,PolygonHierarchy,BoundingSphere,Matrix4} from 'cesium';
-import {NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary} from '../../shared/geospatial-notices.js';
+import {NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary,noticeGeometryClassification} from '../../shared/geospatial-notices.js';
 import {createSkySpyAircraftProvider} from '../src/tracking/aircraft/providers/skyspy.js';
 import {createAircraftProviders} from '../src/tracking/aircraft/registry.js';
 import {createPlaneAlertMilitaryDatabase} from '../src/tracking/aircraft/providers/plane-alert-db.js';
@@ -22,7 +22,7 @@ function harness(fetchImpl){
     const restores=[];
     const viewer={camera:{positionWC:new Cartesian3(7e6,1,2),directionWC:new Cartesian3(-1,0,0),upWC:new Cartesian3(0,0,1),cancelFlight(){},flyToBoundingSphere(){flights++;},flyTo(view){restores.push(view);}},dataSources:{async add(s){sources.push(s);return s;},remove(s){const index=sources.indexOf(s);if(index>=0)sources.splice(index,1);}},scene:{canvas:{},requestRender(){},pick:()=>({id:sources[0]?.entities.values[0]})},flyTo(){flights++;}};
     const context=vm.createContext({Cesium:{...RealCesium,ScreenSpaceEventHandler:Handler,ScreenSpaceEventType:{LEFT_CLICK:0}},
-        NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
+        NOTICE_LAYERS,matchesNoticeLayers,correlateObservation,noticeGeometryParts,noticeGeometryPoints,noticeStatus,nextNoticeBoundary,noticeGeometryClassification,getAllLiveTrackSnapshots:()=>[],getAllNavalSnapshots:()=>[],
         onLayerChange(fn){layerListeners.add(fn);return ()=>layerListeners.delete(fn);},onRegionChange(fn){regionListeners.add(fn);return ()=>regionListeners.delete(fn);},
         isLayerEnabled:id=>enabled.has(id),getActiveRegion:()=>({bounds:{minLat:20,maxLat:30,minLon:60,maxLon:70}}),getAssetFocusController:()=>({getState:()=>focus}),
         window:{__stratopsConfig:{apiBase:'https://staging.example.org'}},document:{createElement:tag=>new Element(tag),body:{append:el=>panels.push(el)},addEventListener(name,fn){events.set(name,fn);},removeEventListener(name){events.delete(name);}},navigator:{clipboard:{writeText(){}}},
@@ -69,6 +69,35 @@ test('template controls retain pagination, filter requests and distinct panel id
     h.context.disposeNoticeLayers();
 });
 const n={id:'test:1',sourceId:'001/26',title:'Fixture only',sourceUrl:'https://example.org/notices',noticeType:'notam',isMilitaryRelated:true,status:'active',rawText:'Test fixture',metadata:{},geometry:{type:'Polygon',coordinates:[[[65,24],[66,24],[66,25],[65,24]]]}};
+
+test('all notice location markers are cached CSS squares, with opacity and preserved category colors',async()=>{
+ const rows=['notam','tfr','airspace','navarea'].map((noticeType,i)=>({...n,id:'square-'+i,noticeType,geometry:{type:'Point',coordinates:[65+i*.1,24]}}));
+ const h=harness(async()=>({ok:true,json:async()=>({notices:rows,total:rows.length})}));
+ for(const id of NOTICE_LAYERS)h.enabled.add(id);
+ h.context.getComputedStyle=()=>({getPropertyValue:key=>key==='--wz-notam-marker-opacity'?'.4':''});
+ h.context.initNoticeLayers(h.viewer);await h.settle();
+ const entities=h.sources[0].entities.values;assert.equal(entities.length,4);
+ for(const entity of entities){assert.equal(entity.point,undefined);assert.ok(entity.billboard);assert.match(decodeURIComponent(entity.billboard.image.getValue()),/<rect /);assert.equal(entity.billboard.color.getValue().alpha,.4);}
+ assert.equal(entities[0].billboard.image.getValue(),entities[1].billboard.image.getValue(),'identical styles share the cached marker image');
+ assert.equal(h.context.window.__stratopsNoticeDiagnostics().rendered,4);h.context.disposeNoticeLayers();assert.equal(h.context.window.__stratopsNoticeDiagnostics,undefined);
+});
+
+test('derived circles show automatically, approximate circles are dashed, and all collection/holes parts survive camera movement',async()=>{
+ const polygon={type:'Polygon',coordinates:[[[65,24],[67,24],[67,26],[65,26],[65,24]],[[65.3,24.3],[65.5,24.3],[65.5,24.5],[65.3,24.3]]]};
+ const rows=[{...n,id:'derived-circle',geometry:{type:'Point',coordinates:[65,24]},metadata:{radiusNm:3,radiusSource:'derived'},geometrySource:'derived circle'},
+ {...n,id:'approx',geometry:{type:'Point',coordinates:[66,24]},metadata:{radiusNm:3,radiusSource:'q-line'}},
+ {...n,id:'collection',geometry:{type:'GeometryCollection',geometries:[polygon,{type:'Point',coordinates:[68,24],radiusMeters:5000},{type:'MultiLineString',coordinates:[[[65,24],[67,24]],[[65,25],[67,25]]]}]}}];
+ const h=harness(async()=>({ok:true,json:async()=>({notices:rows,total:3})}));h.enabled.add('aviation-notam');h.context.getComputedStyle=()=>({getPropertyValue:key=>key==='--wz-notice-show-radius'?'1':''});
+ h.context.initNoticeLayers(h.viewer);await h.settle();const entities=h.sources[0].entities;
+ assert.equal(entities.getById('derived-circle').ellipse.semiMajorAxis.getValue(),3*1852);
+ assert.ok(entities.getById('approx').polyline.material instanceof RealCesium.PolylineDashMaterialProperty);
+ assert.equal(entities.getById('collection').polygon.hierarchy.getValue().holes.length,1);
+ assert.ok(entities.getById('collection::hole:0').polyline);
+ assert.equal(entities.getById('collection::part:1').ellipse.semiMajorAxis.getValue(),5000);
+ assert.ok(entities.getById('collection::part:3').polyline);
+ const original=entities.getById('collection');for(let i=0;i<10;i++)h.viewer.scene.requestRender();await h.settle();assert.equal(entities.getById('collection'),original);
+ h.context.disposeNoticeLayers();
+});
 test('restored unconfigured notices stay silent and do not refetch on region entry; explicit user opening remains available',async()=>{
     let calls=0;const h=harness(async()=>{calls++;return {ok:true,json:async()=>({state:'unconfigured',notices:[]})};});
     h.enabled.add('aviation-notam');h.context.initNoticeLayers(h.viewer,{showOnInit:false});await h.settle();assert.equal(calls,1);assert.equal(h.panels.length,0);assert.equal(h.sources.length,0);

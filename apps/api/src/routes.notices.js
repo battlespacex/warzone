@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import WebSocket from 'ws';
-import {normalizeNotice,noticeStatus,intersectsBounds,correlateObservation,matchesNoticeLayers,NOTICE_LAYERS} from '../../shared/geospatial-notices.js';
+import {normalizeNotice,noticeStatus,intersectsBounds,correlateObservation,matchesNoticeLayers,NOTICE_LAYERS,noticeGeometryClassification} from '../../shared/geospatial-notices.js';
 import {assessStatusSignal} from '../../shared/status-signal-policy.js';
 import {createSkySpyClient} from '../../shared/skyspy-client.js';
 import {createSkySpyStream} from '../../shared/skyspy-stream.js';
@@ -32,25 +32,27 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
                 const parsed=[];for(const row of data)try{parsed.push(normalizeNotice(row,now()));}catch{rejected++;}if(data.length&&!parsed.length)throw Error('Import validation failed');imported=parsed;next.push(...imported);health.import='loaded';success=true;
             }catch{health.import='unavailable';next.push(...imported);}
             if(env.SKYSPY_ENABLED==='true'&&env.SKYSPY_NOTAMS_ENABLED==='true')try{
-                let retrieved=0;
+                let retrieved=0,partial=false;
                 for(const path of ['/notams/','/notams/tfrs/','/aviation/airspace/'])try{
                     const payload=await client.get(path,path==='/notams/'?{limit:200,active_only:false}:{}),items=Array.isArray(payload)?payload:payload.results||payload.notams||payload.airspace;
                     if(!Array.isArray(items))throw Error('Unverified deployed notice schema');
+                    partial ||= items.length>=200||Boolean(payload.next||payload.has_more)||Number(payload.total)>200;
                     const normalized=[];for(const row of items.slice(0,200))try{normalized.push(skySpyNotice(row,now()));}catch{rejected++;}if(items.length&&!normalized.length)throw Error('Unverified provider schema');families.set(path,normalized);next.push(...normalized);retrieved++;
                 }catch{next.push(...(families.get(path)||[]));}
-                if(!retrieved)throw Error('No accessible notice family');health.skyspy='retrieved';success=true;
+                if(!retrieved)throw Error('No accessible notice family');health.skyspyPartial=partial||(retrieved<3&&health.skyspyPartial===true);health.skyspy='retrieved';success=true;
             }catch{health.skyspy='unavailable or unapproved';next.push(...rows.filter(n=>n.provider==='skyspy'));}
             for(const provider of providers)if(provider.diagnostics().availableForUse)try{
-                const records=await provider.fetchNotices(query);families.set(provider.id,records);next.push(...records);success=true;
+                const records=await provider.fetchNotices(query);families.set(provider.id,records);next.push(...records);if(provider.diagnostics().stale!==true)success=true;
             }catch{next.push(...(families.get(provider.id)||[]));}
             const values=deduplicateNotices([...next,...streamed.values()]);
-            if(disposed)return;rows=values.slice(0,5000);canonicalRows=streamed.size?null:rows;lastScope=scope;health.rejected=rejected;if(success)health.lastSuccess=new Date(now()).toISOString();health.streamDirty=streamDirty;streamDirty=false;until=now()+60000;
+            if(disposed)return;health.truncated=values.length>5000;rows=values.slice(0,5000);canonicalRows=streamed.size?null:rows;lastScope=scope;health.rejected=rejected;if(success)health.lastSuccess=new Date(now()).toISOString();health.streamDirty=streamDirty;streamDirty=false;until=now()+60000;
             health.state=!configured()?'unconfigured':success?'ready':rows.length?'stale':'unavailable';
             return currentRows();
         })().finally(()=>pending=null);return pending;
     }
     function currentRows(){return canonicalRows ||= deduplicateNotices([...rows,...streamed.values()]);}
     return {async list(query={}){const snapshot=await refresh(query);let values=(disposed?[]:snapshot || currentRows()).map(n=>({...n,status:noticeStatus(n,now())}));
+        const received=values;let scopedReceived=received;
         if(health.state==='unavailable'){const error=Error('Notice providers unavailable');const statuses=providers.map(p=>p.diagnostics().lastStatus).filter(Boolean);error.status=statuses.length===1?statuses[0]:503;throw error;}
         if(query.layers){const layers=String(query.layers).split(',');if(layers.some(id=>!NOTICE_LAYERS.includes(id)))throw Object.assign(Error('Invalid notice layer'),{status:400});values=values.filter(n=>matchesNoticeLayers(n,layers));}
         if(query.status==='all'){}else if(['active','upcoming','expired','cancelled','superseded','unknown'].includes(query.status))values=values.filter(n=>n.status===query.status);
@@ -61,8 +63,16 @@ export function createNoticeService({env=process.env,readFile=fs.readFile,now=Da
             const bounds=Object.fromEntries(['minLat','maxLat','minLon','maxLon'].map(k=>[k,Number(query[k])]));
             if(!Object.values(bounds).every(Number.isFinite)||bounds.minLat>bounds.maxLat||bounds.minLat< -90||bounds.maxLat>90||Math.abs(bounds.minLon)>180||Math.abs(bounds.maxLon)>180)throw Object.assign(Error('Invalid bounds'),{status:400});
             values=values.filter(n=>intersectsBounds(n,bounds));}
+        if(['minLat','maxLat','minLon','maxLon'].some(k=>query[k]!=null)) {
+            const bounds=Object.fromEntries(['minLat','maxLat','minLon','maxLon'].map(k=>[k,Number(query[k])]));
+            scopedReceived=received.filter(n=>intersectsBounds(n,bounds));
+        }
         const offset=Math.max(0,Math.floor(Number(query.offset)||0)),limit=Math.max(1,Math.min(200,Math.floor(Number(query.limit)||100)));
-        return {state:health.state||'unconfigured',partial:providers.some(p=>p.diagnostics().partial),notices:values.slice(offset,offset+limit),total:values.length,offset,providers:{...health,commercial:providers.map(p=>({id:p.id,...p.diagnostics()})),skyspyHealth:{...client.diagnostics(),licensing:env.SKYSPY_USAGE_APPROVED==='true'?'approved':'unapproved',authentication:env.SKYSPY_API_KEY?'configured; not live verified':'unconfigured/public mode',coverage:'Configured service scope; not global coverage'},stream:stream.diagnostics(),
+        const counts=rows=>Object.fromEntries(['Published boundary','Derived boundary','Approximate coverage','Location only','Unavailable'].map(kind=>[kind,rows.filter(n=>noticeGeometryClassification(n)===kind).length]));
+        return {state:health.state||'unconfigured',partial:health.skyspyPartial===true||health.truncated===true||providers.some(p=>p.diagnostics().partial),notices:values.slice(offset,offset+limit),total:values.length,offset,
+            pagination:{limit,offset,nextOffset:offset+limit<values.length?offset+limit:null,hasMore:offset+limit<values.length},
+            diagnostics:{recordsReceived:scopedReceived.length,recordsFilteredOut:scopedReceived.length-values.length,recordsWithGeometry:values.filter(n=>n.geometry).length,receivedGeometry:counts(scopedReceived),matchedGeometry:counts(values),rendered:null},
+            providers:{...health,commercial:providers.map(p=>({id:p.id,...p.diagnostics()})),skyspyHealth:{...client.diagnostics(),licensing:env.SKYSPY_USAGE_APPROVED==='true'?'approved':'unapproved',authentication:env.SKYSPY_API_KEY?'configured; not live verified':'unconfigured/public mode',coverage:'Configured service scope; not global coverage'},stream:stream.diagnostics(),
             aai:createOfficialNoticeAdapter('aai').diagnostics(),navareaIX:createOfficialNoticeAdapter('navareaIX').diagnostics()},
             active:values.filter(n=>n.status==='active').length,geolocated:values.filter(n=>n.geometry).length,nonGeolocated:values.filter(n=>!n.geometry).length};},
         async correlate(observation){await refresh();return currentRows().filter(n=>containsCandidate(n,observation)).slice(0,50).map(n=>correlateObservation(n,observation,now()));},

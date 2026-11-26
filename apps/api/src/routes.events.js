@@ -12,6 +12,7 @@ import { attachAvailableSatelliteContextToEvents, attachSatelliteContextToEvents
 import { toPublicEvent, toPublicMapEvent } from "./public-event-normalizer.js";
 import { authorizeNavalHistory } from "./naval-history-access.js";
 import { NAVAL_CONTACT_AGE_MS } from "../../shared/naval-contact-lifecycle.js";
+import { applyConflictRetentionQuery } from "../../shared/conflict-retention.js";
 import {
     MAP_EVENT_HISTORY_WINDOW_HOURS,
     applyGeneralEventDeliveryFilters,
@@ -30,7 +31,7 @@ const MAX_EVENTS_WINDOW_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 const DEFAULT_EVENTS_LIMIT = 2000;
 const MIN_EVENTS_LIMIT = 200;
 const MAX_EVENTS_LIMIT = 4000;
-export const MAP_EVENTS_WINDOW_HOURS = 48;
+export const MAP_EVENTS_WINDOW_HOURS = 72;
 export const MAP_EVENTS_MAX_WINDOW_HOURS = 72;
 export const MAP_EVENTS_LIMIT = 800;
 export const MAP_EVENTS_SELECT_COLUMNS = [
@@ -203,6 +204,7 @@ export function parseMapEventsRequest(queryParams = {}, now = Date.now()) {
         now,
         windowHours,
         limit,
+        offset: clamp(Math.floor(Number(queryParams.offset) || 0), 0, 1_000_000),
         cutoffIso: new Date(now - (windowHours * 60 * 60 * 1000)).toISOString(),
     };
 }
@@ -219,11 +221,13 @@ export function buildMapEventsQuery(supabase, options = {}) {
         .lte("lon", bounds.maxLon);
     eventsQuery = applyGeneralEventDeliveryFilters(eventsQuery);
     eventsQuery = applyPublicNavalSignalQueryFilter(eventsQuery, options.now);
+    eventsQuery = applyConflictRetentionQuery(eventsQuery, options.now);
     return eventsQuery
         .order("is_breaking", { ascending: false })
         .order("priority_score", { ascending: false, nullsFirst: false })
         .order("occurred_at", { ascending: false })
-        .limit(options.limit);
+        .order("id", { ascending: true })
+        .range(options.offset || 0, (options.offset || 0) + options.limit);
 }
 
 export function createMapEventsHandler({
@@ -244,7 +248,9 @@ export function createMapEventsHandler({
             if (error) return res.status(500).json({ error: "Failed" });
 
             const serializationStartedAt = clock();
-            const eventsWithSatellite = await attachSatellite(supabase, (data || []).filter((event) => !isArchivedNavalSignal(event, requestStartedAt)));
+            const hasMore = (data || []).length > options.limit;
+            const page = (data || []).slice(0, options.limit);
+            const eventsWithSatellite = await attachSatellite(supabase, page.filter((event) => !isArchivedNavalSignal(event, requestStartedAt)));
             const events = eventsWithSatellite.map(toPublicMapEvent);
             const payload = JSON.stringify({
                 events,
@@ -253,6 +259,9 @@ export function createMapEventsHandler({
                     window_hours: options.windowHours,
                     limit: options.limit,
                     rows: events.length,
+                    offset: options.offset,
+                    has_more: hasMore,
+                    next_offset: hasMore ? options.offset + options.limit : null,
                 },
             });
             const serializationDurationMs = Math.max(0, clock() - serializationStartedAt);

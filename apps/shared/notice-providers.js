@@ -1,34 +1,26 @@
-import {normalizeNotice,parseNotam,parseCoordinates,validateGeometry,publishedRadiusNm} from './geospatial-notices.js';
+import {normalizeNotice,parseNotam,extractNoticeArea,noticeGeometryClassification} from './geospatial-notices.js';
 import {createQuotaFetch,resolveQuotaPolicy} from './provider-quota.js';
 import {getQuotaStore,fingerprint} from './provider-quota-store.js';
 
 export function normalizeNotacNotice(row,now=Date.now()) {
     if(!row?.id || !row.number || !row.text)throw Error('Invalid NOTAC notice');
-    // Read an explicitly described boundary, not a collection of unrelated runway/waypoint positions.
-    const boundary=row.text.match(/\b(?:BOUNDED BY(?:\s+(?:COORDS|COORDINATES))?|AREA DEFINED BY|WI(?:THIN)? (?:THE )?AREA(?: DEFINED BY)?|AREA (?:WITH (?:THE )?)?FOLLOWING COORDINATES)\b\s*:?\s*([\s\S]+)/i)?.[1];
-    let coordinates=[],boundaryError='';
-    if(boundary&&!/\b(?:ARC|CIRCLE|CLOCKWISE|AREA\s*\d|AREA [A-Z]\b)\b/i.test(boundary)){
-        try{coordinates=parseCoordinates(boundary);}catch{boundaryError='Invalid published boundary coordinates';}
-    }
-    let geometry=row.geography?.geojson || null;
-    const radius=publishedRadiusNm(row.text),centers=radius?parseCoordinates(row.text):[];
-    const publishedCircle=radius&&centers.length===1&&(!geometry||geometry.type==='Point');
-    if(publishedCircle&&(!geometry||geometry.type==='Point'))geometry={type:'Point',coordinates:centers[0]};
-    if((!geometry||geometry.type==='Point')&&coordinates.length>=3){
-        try{geometry=validateGeometry({type:'Polygon',coordinates:[coordinates]});}catch{boundaryError='Published boundary is invalid or self-intersecting; Q-line location only';}
-    }
+    const supplied=row.geography?.geojson || null;
+    const authoritative=supplied&&supplied.type!=='Point'||supplied?.radiusMeters;
+    const extracted=authoritative?null:extractNoticeArea(row.text);
+    const geometry=extracted?.geometry || supplied;
+    const boundaryError=!authoritative&&!extracted&&/\b(?:BOUNDED BY|AREA DEFINED BY|FOLLOWING COORDINATES)\b/i.test(row.text)?'Published boundary is invalid, self-intersecting or unsupported; Q-line location only':'';
     const raw=row.raw || row.text;
     const n=normalizeNotice({provider:'notac',issuer:row.affected_fir || row.location_code || row.account_id,sourceId:row.number,
         sourceUrl:'https://notac.aero/notam/'+encodeURIComponent(row.id)+'/',noticeType:row.category?.code==='TFR'?'tfr':row.category?.code==='AIRSPACE'?'airspace':'notam',
         rawText:raw,title:'NOTAM '+row.number,summary:row.text,country:row.country?.name || row.country?.code || '',region:row.region?.name || '',fir:row.affected_fir,
         issuedAt:row.notam_issued,effectiveFrom:row.effective_start,effectiveUntil:row.effective_end,schedule:row.schedule || '',
         lowerAltitude:row.lower_limit || (row.minimum_fl?'FL'+row.minimum_fl:''),upperAltitude:row.upper_limit || (row.maximum_fl?'FL'+row.maximum_fl:''),
-        geometry,geometrySource:['Polygon','MultiPolygon'].includes(geometry?.type)?'published boundary coordinates':['LineString','MultiLineString'].includes(geometry?.type)?'published route coordinates':publishedCircle?'published circle center':'published Q-line location',geometryAccuracy:geometry?.type==='Point'&&!publishedCircle?'approximate area of influence':'source stated',
+        geometry,geometrySource:extracted?.geometrySource || (authoritative?(['LineString','MultiLineString'].includes(geometry?.type)?'published route coordinates':'published boundary coordinates'):'published Q-line location'),geometryAccuracy:extracted?'reliably parsed notice text':geometry?.type==='Point'&&!geometry.radiusMeters?'approximate area of influence':'source stated',
         isCancellation:row.status==='cancelled' || Boolean(row.record_archived_at) || row.notam_type==='C',
         replacesNoticeId:raw.match(/NOTAM[RC]\s+([A-Z]\d{4}\/\d{2})/)?.[1],
         provenance:{extraction:row.raw?'NOTAC source ICAO text':'NOTAC published E-line; full ICAO text not included',verification:'published'},
         metadata:{updatedAt:row.record_updated_at || row.notam_updated,permanent:row.effective_end===null,
-            ...(publishedCircle?{radiusNm:radius,radiusSource:'published'}:geometry?.type==='Point'&&row.geography?.radius_nm>0?{radiusNm:row.geography.radius_nm,radiusSource:'q-line'}:{})}},now);
+            ...(extracted?.metadata || (geometry?.type==='Point'&&row.geography?.radius_nm>0?{radiusNm:row.geography.radius_nm,radiusSource:'q-line'}:{}))}},now);
     const type=n.noticeType;classifyPublishedNotice(n);n.noticeType=type;
     if(row.details?.classification?.code==='MIL')n.isMilitaryRelated=true;
     n.metadata.qCode=row.q_code || '';if(boundaryError)n.metadata.boundaryError=boundaryError;return n;
@@ -37,8 +29,8 @@ export function normalizeNotacNotice(row,now=Date.now()) {
 export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
     const quotaFetch=createQuotaFetch({env,fetchImpl,now});
     const enabled=env.NOTAC_ENABLED==='true',key=env.NOTAC_API_KEY || '',scopes=new Map();
-    let blockedUntil=0,remaining=null,lastStatus=null,lastSuccess=null,daily='',creditMonth='',requests=0,partial=false;
-    const diagnostics=()=>({enabled,availableForUse:enabled&&Boolean(key),authentication:key?'configured':'unconfigured',lastStatus,lastSuccess,partial,
+    let blockedUntil=0,remaining=null,lastStatus=null,lastSuccess=null,daily='',creditMonth='',requests=0,partial=false,stale=false;
+    const diagnostics=()=>({enabled,availableForUse:enabled&&Boolean(key),authentication:key?'configured':'unconfigured',lastStatus,lastSuccess,partial,stale,
         coverage:'Requested geographic bounds; incremental pages may be incomplete',creditsRemaining:remaining,nextRetryAt:new Date(blockedUntil).toISOString()});
     return {id:'notac',diagnostics,async fetchNotices(query={}){
         if(!enabled||!key)return [];
@@ -49,17 +41,17 @@ export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
         if(values[0]>values[2])return deduplicateNotices((await Promise.all([this.fetchNotices({...query,maxLon:180}),this.fetchNotices({...query,minLon:-180})])).flat());
         const scope=values.join(',');let state=scopes.get(scope);
         if(!state){if(scopes.size>=6)scopes.delete(scopes.keys().next().value);state={rows:new Map(),until:0,cursor:null,next:null,pending:null,fetchedAt:0};scopes.set(scope,state);}
-        const valuesFromState=()=>[...state.rows.values()].map(row=>{const n=normalizeNotacNotice(row,now());n.lastFetchedAt=new Date(state.fetchedAt).toISOString();return n;});
+        const valuesFromState=()=>{stale=now()>=state.until;return [...state.rows.values()].map(row=>{const n=normalizeNotacNotice(row,now());n.lastFetchedAt=new Date(state.fetchedAt).toISOString();return n;});};
         if(now()<state.until)return valuesFromState();
         if(state.pending)return state.pending;
         const day=new Date(now()).toISOString().slice(0,10);if(day!==daily){daily=day;requests=0;}
         if(day.slice(0,7)!==creditMonth){creditMonth=day.slice(0,7);remaining=null;}
-        if(now()<blockedUntil || remaining!==null&&remaining<3 || requests>=96)throw Error('NOTAC allowance/backoff; cached notices retained');
         state.pending=(async()=>{
             const storage=getQuotaStore(env),policy=resolveQuotaPolicy('https://notac.aero/api/v1/notam/delta/',{headers:{Authorization:'Bearer '+key}},env);
             const stateKey='notac-scope:'+policy.account+':'+fingerprint(scope);
             const saved=await storage.transact(stateKey,entry=>entry.snapshot || null);
             if(saved){Object.assign(state,saved,{rows:new Map(saved.rows)});if(now()<state.until)return valuesFromState();}
+            if(now()<blockedUntil || remaining!==null&&remaining<3 || requests>=96)throw Error('NOTAC allowance/backoff; cached notices retained');
             const rows=new Map(state.rows);let url=new URL(state.next || 'https://notac.aero/api/v1/notam/delta/');
             if(!state.next){url.searchParams.set('bbox',scope);if(state.cursor)url.searchParams.set('cursor',state.cursor);}
             let next=null,cursor=state.cursor;
@@ -79,7 +71,7 @@ export function createNotacProvider(env={}, {fetchImpl=fetch,now=Date.now}={}) {
             Object.assign(state,{rows,cursor,next,until:now()+1800000,fetchedAt:now()});partial=Boolean(next);lastSuccess=new Date(now()).toISOString();
             await storage.transact(stateKey,entry=>{entry.snapshot={rows:[...rows],cursor,next,until:state.until,fetchedAt:state.fetchedAt};});
             return valuesFromState();
-        })().catch(error=>{if(blockedUntil<now()+60000)blockedUntil=now()+60000;throw error;}).finally(()=>state.pending=null);
+        })().catch(error=>{blockedUntil=Math.max(blockedUntil,now()+Math.max(60000,Number(error.retryAfterMs)||0));if(state.rows.size)return valuesFromState();throw error;}).finally(()=>state.pending=null);
         return state.pending;
     }};
 }
@@ -103,7 +95,9 @@ export function deduplicateNotices(records) {
         const prior=groups.get(key);
         if(prior&&clean(prior.issuer)!==scope&&clean(n.issuer)!==scope&&clean(prior.issuer)!==clean(n.issuer))key+=':'+clean(n.issuer);
         const existing=groups.get(key),sources=[...(existing?.sourceRecords||[]),...(n.sourceRecords||[{provider:n.provider,sourceId:n.sourceId,sourceUrl:n.sourceUrl,rawText:n.rawText,issuer:n.issuer,issuedAt:n.issuedAt,lastVerifiedAt:n.lastVerifiedAt}])];
-        const rank=row=>[row.provenance?.verification==='verified'?1:0,Date.parse(row.metadata?.updatedAt||row.lastVerifiedAt||row.issuedAt)||0,row.geometry?1:0,({autorouter:2,aviation_edge:1})[row.provider]||0,row.rawText?.length||0];
+        const rank=row=>[row.provenance?.verification==='verified'?1:0,Date.parse(row.metadata?.updatedAt||row.lastVerifiedAt||row.issuedAt)||0,
+            ({'Published boundary':3,'Derived boundary':2,'Approximate coverage':1,'Location only':0,'Unavailable':-1})[noticeGeometryClassification(row)],
+            ({autorouter:2,aviation_edge:1})[row.provider]||0,row.rawText?.length||0];
         const prefer=(a,b)=>{const x=rank(a),y=rank(b);for(let i=0;i<x.length;i++)if(x[i]!==y[i])return x[i]>y[i]?a:b;return a;};
         const preferred=existing?prefer(existing,n):n;
         const references=[...new Map(sources.map(s=>[[s.provider,s.sourceUrl,s.sourceId].join('|'),s])).values()].slice(0,8);

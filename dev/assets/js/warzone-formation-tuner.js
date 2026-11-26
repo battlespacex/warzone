@@ -393,7 +393,7 @@ const FORMATION_PRESETS = Object.freeze({
         headingDeg: 90,
         anchorAltitudeFt: 22000,
         speedKts: 320,
-        focusMemberId: "patrol-f16",
+        focusMemberId: "patrol-e3",
         patrol: Object.freeze({
             orbitCenter: Object.freeze({ lat: 25.20, lon: 56.75 }),
             orbitRadiusMeters: 18000,
@@ -407,8 +407,8 @@ const FORMATION_PRESETS = Object.freeze({
             magneticVariationDeg: 2,
         }),
         members: Object.freeze([Object.freeze({
-            id: "patrol-f16", title: "Fictional UAE F-16 Air Patrol",
-            assetKey: "Fighter-F16", subtype: "fighter", icaoType: "F16", icao24: "F0A101",
+            id: "patrol-e3", title: "Boeing E-3 Sentry AWACS (Fictional Simulation)",
+            assetKey: "AWACS-E3", subtype: "awacs", icaoType: "E3CF", icao24: "F0A101",
             callsign: "SIMUAE01", serial: "SIM-UAE-01", simulated: true,
             forwardM: 0, rightM: 0, altitudeOffsetFt: 0,
         })]),

@@ -8,15 +8,11 @@ import {
   normalizeConflictItemToEventPayload,
   safeDate
 } from "./intelligence-normalizer.js";
-import {
-  MAP_EVENT_HISTORY_WINDOW_HOURS,
-  isMapEventHistoricallyRelevant
-} from "../../shared/map-event-policy.js";
+import { isActiveConflictItem, earliestConflictDate, originalConflictTimestamp, CONFLICT_EVENT_LOOKUP_FILTER } from "../../shared/conflict-retention.js";
 import { mergeEventQuality, readEventQuality } from "./event-quality.js";
 import { CORROBORATION_STATES } from "../../shared/source-quality-policy.js";
 
 const DEFAULT_PROMOTION_LIMIT = 40;
-const DEFAULT_MAX_AGE_HOURS = MAP_EVENT_HISTORY_WINDOW_HOURS;
 
 function readPositiveInteger(value, fallback) {
   const parsed = Number.parseInt(String(value || ""), 10);
@@ -28,22 +24,10 @@ const PROMOTION_LIMIT = readPositiveInteger(
   DEFAULT_PROMOTION_LIMIT
 );
 
-const MAX_AGE_HOURS = Math.max(
-  DEFAULT_MAX_AGE_HOURS,
-  readPositiveInteger(process.env.CONFLICT_EVENT_MAX_AGE_HOURS, DEFAULT_MAX_AGE_HOURS)
-);
-
 function getItemText(item = {}) {
   return [item.title, item.summary, item.source_category]
     .filter(Boolean)
     .join(" ");
-}
-
-function isRecentEnough(item = {}) {
-  if (!MAX_AGE_HOURS) return true;
-  const occurredAt = safeDate(item.published_at || item.fetched_at);
-  if (!occurredAt) return true;
-  return Date.now() - Date.parse(occurredAt) <= MAX_AGE_HOURS * 60 * 60 * 1000;
 }
 
 function isPromotableOperationalItem(item = {}) {
@@ -75,42 +59,50 @@ function isSchemaColumnError(error) {
   return /column|schema cache|priority_score|metadata|tags|weapon_type|subcategory|severity|report_type/i.test(message);
 }
 
-async function findExistingEvent(payload = {}) {
-  const selection = "id, metadata, confidence, status, source_count, dedupe_key, source_url";
+async function findExistingEvent(payload = {}, db = supabase) {
+  const selection = "id, occurred_at, metadata, confidence, status, source_count, dedupe_key, source_url, country_code";
   const dedupeKey = payload.dedupe_key;
   if (dedupeKey) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("events")
       .select(selection)
+      .or(CONFLICT_EVENT_LOOKUP_FILTER)
       .eq("dedupe_key", dedupeKey)
       .limit(1);
-    if (!error && Array.isArray(data) && data.length > 0) return data[0];
+    if (error) throw error;
+    if (Array.isArray(data) && data.length > 0) return data[0];
   }
 
   if (payload.source_url) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("events")
       .select(selection)
+      .or(CONFLICT_EVENT_LOOKUP_FILTER)
       .eq("source_url", payload.source_url)
       .limit(1);
-    if (!error && Array.isArray(data) && data.length > 0) return data[0];
+    if (error) throw error;
+    if (Array.isArray(data) && data.length > 0) return data[0];
   }
 
   const fingerprint = readEventQuality(payload).event_fingerprint;
   if (fingerprint) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("events")
       .select(selection)
+      .or(CONFLICT_EVENT_LOOKUP_FILTER)
       .eq("metadata->event_quality->>event_fingerprint", fingerprint)
       .limit(1);
-    if (!error && Array.isArray(data) && data.length > 0) return data[0];
+    if (error) throw error;
+    if (Array.isArray(data) && data.length > 0) return data[0];
   }
 
   return null;
 }
 
-async function mergePromotedEvent(existing = {}, incoming = {}) {
-  const quality = mergeEventQuality(existing, incoming);
+async function mergePromotedEvent(existing = {}, incoming = {}, db = supabase) {
+  const quality = mergeEventQuality(existing, incoming, {
+    event_fingerprint: readEventQuality(existing).event_fingerprint || readEventQuality(incoming).event_fingerprint,
+  });
   const metadata = existing.metadata && typeof existing.metadata === "object" ? existing.metadata : {};
   const confidence = quality.corroboration_state === CORROBORATION_STATES.DISPUTED
     ? quality.confidence
@@ -120,29 +112,42 @@ async function mergePromotedEvent(existing = {}, incoming = {}) {
     : quality.corroboration_state === CORROBORATION_STATES.UNVERIFIED || quality.corroboration_state === CORROBORATION_STATES.DISPUTED
       ? "signal"
       : "developing";
-  const updateResult = await supabase
+  const occurredAt = earliestConflictDate(existing.occurred_at, incoming.occurred_at);
+  if (JSON.stringify(quality) === JSON.stringify(readEventQuality(existing)) &&
+      confidence === existing.confidence && status === existing.status &&
+      quality.raw_report_count === existing.source_count && occurredAt === existing.occurred_at &&
+      (!incoming.country_code || existing.country_code)) {
+    return { error: null, quality, unchanged: true };
+  }
+  const updateResult = await db
     .from("events")
     .update({
-      metadata: { ...metadata, event_quality: quality },
+      metadata: {
+        ...metadata, intelligence_pipeline: "conflict", event_quality: quality,
+        timeline: { ...incoming.metadata?.timeline, ...metadata.timeline, occurred_at: occurredAt },
+      },
       confidence,
       status,
       source_count: quality.raw_report_count,
-      updated_at: new Date().toISOString(),
+      occurred_at: occurredAt,
+      ...(incoming.country_code && !existing.country_code ? { country_code: incoming.country_code } : {}),
     })
     .eq("id", existing.id);
   return { ...updateResult, quality };
 }
 
-async function insertPromotedEvent(payload = {}) {
-  let result = await supabase.from("events").insert([payload]);
+async function insertPromotedEvent(payload = {}, db = supabase) {
+  let result = await db.from("events").insert([payload]);
   if (result.error && isSchemaColumnError(result.error)) {
-    result = await supabase.from("events").insert([pickCoreEventPayload(payload)]);
+    result = await db.from("events").insert([pickCoreEventPayload(payload)]);
   }
   return result;
 }
 
 async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
   const logger = options.logger || console;
+  const db = options.db || supabase;
+  const now = options.now ?? Date.now();
   const limit = readPositiveInteger(options.limit, PROMOTION_LIMIT);
   const result = {
     ok: true,
@@ -153,6 +158,15 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
     duplicate_count: 0,
     skipped_non_operational_count: 0,
     skipped_old_count: 0,
+    skipped_future_count: 0,
+    skipped_missing_timestamp_count: 0,
+    deferred_count: 0,
+    updated_count: 0,
+    eligible_event_count: 0,
+    failed_normalization_count: 0,
+    insufficient_evidence_count: 0,
+    rejection_reasons: {},
+    eligible_report_regions: {},
     skipped_low_relevance_count: 0,
     skipped_no_location_count: 0,
     error_count: 0,
@@ -160,26 +174,46 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
   };
 
   const sourceItems = Array.isArray(items) ? items : [];
+  const reject = (reason) => { result.rejection_reasons[reason] = (result.rejection_reasons[reason] || 0) + 1; };
 
   for (const item of sourceItems) {
     result.considered_count += 1;
 
     if (!isPromotableOperationalItem(item)) {
       result.skipped_non_operational_count += 1;
+      result.insufficient_evidence_count += 1;
+      reject(item?.is_conflict_relevant === false ? "not_conflict_relevant"
+        : !item?.title || !item?.url ? "missing_title_or_url"
+        : isIntelWireOnlyNewsText(getItemText(item)) ? "intel_wire_only_news" : "not_operational_incident");
       continue;
     }
 
-    if (!isRecentEnough(item)) {
-      result.skipped_old_count += 1;
+    if (!safeDate(item.occurred_at || item.raw?._original_occurred_at || item.published_at)) {
+      result.skipped_missing_timestamp_count += 1;
+      reject("missing_original_timestamp");
+      continue;
+    }
+    if (!isActiveConflictItem(item, now)) {
+      if (originalConflictTimestamp(item) > now) { result.skipped_future_count += 1; reject("future_timestamp"); }
+      else { result.skipped_old_count += 1; reject("expired"); }
       continue;
     }
 
     result.candidate_count += 1;
-    if (result.promoted_count >= limit) continue;
 
-    const normalized = normalizeConflictItemToEventPayload(item);
+    let normalized;
+    try {
+      normalized = normalizeConflictItemToEventPayload(item);
+    } catch {
+      result.failed_normalization_count += 1;
+      result.error_count += 1;
+      reject("normalization_failed");
+      continue;
+    }
     if (!normalized.map_eligible) {
-      result.skipped_no_location_count += 1;
+      if (normalized.reason === "unreliable_location") result.skipped_no_location_count += 1;
+      else result.insufficient_evidence_count += 1;
+      reject(normalized.reason);
       logger.debug?.(
         `[conflict] event promotion skipped reason=${normalized.reason} title=${String(item.title || "").slice(0, 80)}`
       );
@@ -187,28 +221,38 @@ async function promoteConflictFeedItemsToEvents(items = [], options = {}) {
     }
 
     const payload = normalized.event;
-    if (!isMapEventHistoricallyRelevant(payload)) {
+    if (!isActiveConflictItem(payload, now)) {
       result.skipped_low_relevance_count += 1;
+      reject("expired_original_occurrence");
       continue;
     }
+    result.eligible_event_count += 1;
+    const region = payload.metadata?.normalization?.event_region || "unassigned";
+    result.eligible_report_regions[region] = (result.eligible_report_regions[region] || 0) + 1;
 
     try {
-      const existing = await findExistingEvent(payload);
+      const existing = await findExistingEvent(payload, db);
       if (existing) {
         const beforeCount = Number(readEventQuality(existing).raw_report_count || 0);
-        const mergeResult = await mergePromotedEvent(existing, payload);
+        const mergeResult = await mergePromotedEvent(existing, payload, db);
         if (mergeResult.error) {
           result.error_count += 1;
           result.errors.push(mergeResult.error.message || String(mergeResult.error));
         } else if (Number(mergeResult.quality?.raw_report_count || 0) > beforeCount) {
+          result.updated_count += 1;
           result.merged_count += 1;
         } else {
+          if (!mergeResult.unchanged) result.updated_count += 1;
           result.duplicate_count += 1;
         }
         continue;
       }
 
-      const { error } = await insertPromotedEvent(payload);
+      if (result.promoted_count >= limit) {
+        result.deferred_count += 1;
+        continue;
+      }
+      const { error } = await insertPromotedEvent(payload, db);
       if (error) {
         result.error_count += 1;
         result.errors.push(error.message || String(error));

@@ -1,6 +1,7 @@
 import { getLiveHtmlSources } from "./conflict-sources.js";
 import { enrichConflictItem } from "./conflict-filter.js";
 import { enrichConflictItemsWithArticleMetadata } from "./conflict-media-enricher.js";
+import { extractDivContentByClass } from "./conflict-article-publication.js";
 import {
   formatSourceFailure,
   getSourceHealth,
@@ -91,6 +92,9 @@ function extractMiddleEastEyeLiveItems(html = "", source = {}) {
     const title = cleanHtml(match[2] || "");
     if (!url || !title) continue;
     const liveTopic = extractLiveTopic(url);
+    const rowStart = html.lastIndexOf('<div class="views-row">', match.index);
+    const row = rowStart < 0 ? "" : extractDivContentByClass(html.slice(rowStart), "views-row");
+    const narrative = cleanHtml(extractDivContentByClass(row, "views-field-field-text-1")).slice(0, 1200);
     const key = url.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -101,7 +105,7 @@ function extractMiddleEastEyeLiveItems(html = "", source = {}) {
       source_category: source.category,
       source_base_url: source.base_url || null,
       title,
-      summary: liveTopic ? `Live conflict topic: ${liveTopic}` : "",
+      summary: narrative || "",
       url,
       guid: url,
       canonical_url: url,
@@ -114,6 +118,7 @@ function extractMiddleEastEyeLiveItems(html = "", source = {}) {
         source_category: source.category,
         source_base_url: source.base_url || null,
         live_topic: liveTopic || null,
+        summary: narrative || null,
         allowPublicUrl: true,
       }
     });
@@ -207,6 +212,7 @@ async function fetchAllLiveHtmlConflictItems(options = {}) {
 }
 
 export {
+  parseLiveHtmlSource,
   fetchSingleLiveHtmlSource,
   fetchAllLiveHtmlConflictItems,
 };

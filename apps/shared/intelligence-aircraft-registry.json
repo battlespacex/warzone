@@ -1,0 +1,1466 @@
+[
+  {
+    "id": "isr-1",
+    "family": "Boeing E-3 Sentry",
+    "model": "Boeing E-3 Sentry",
+    "icaoType": "E3CF",
+    "aliases": [
+      "E-3 Sentry",
+      "Sentry",
+      "Boeing E-3 Sentry AWACS"
+    ],
+    "operatorCountries": [
+      "USA",
+      "NATO",
+      "France",
+      "Saudi Arabia",
+      "UK"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [
+      "AWACS",
+      "ISR",
+      "Airborne command and control"
+    ],
+    "sensorCategory": "Rotating surveillance radar",
+    "specificationSource": "https://www.af.mil/About-Us/Fact-Sheets/Display/Article/104504/e-3-sentry-awacs/",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-2",
+    "family": "Boeing E-7 Wedgetail",
+    "model": "Boeing E-7 Wedgetail",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Australia",
+      "Turkey",
+      "South Korea",
+      "UK"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": "MESA radar",
+    "specificationSource": "https://www.airforce.gov.au/aircraft/e-7a-wedgetail",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-3",
+    "family": "Boeing E-767",
+    "model": "Boeing E-767",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Japan"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-4",
+    "family": "E-2C Hawkeye",
+    "model": "E-2C Hawkeye",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "France",
+      "Japan",
+      "Egypt",
+      "Taiwan"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-5",
+    "family": "E-2D Advanced Hawkeye",
+    "model": "E-2D Advanced Hawkeye",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "Japan"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-6",
+    "family": "Saab 340 Erieye / S100B",
+    "model": "Saab 340 Erieye / S100B",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Sweden",
+      "Thailand",
+      "Greece"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-7",
+    "family": "Saab 2000 Erieye",
+    "model": "Saab 2000 Erieye",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Pakistan",
+      "Saudi Arabia"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": "Erieye radar",
+    "specificationSource": "https://www.saab.com/products/air/airborne-surveillance",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-8",
+    "family": "Saab GlobalEye",
+    "model": "Saab GlobalEye",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "UAE",
+      "Sweden"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": "Erieye ER radar / multisensor",
+    "specificationSource": "https://www.saab.com/products/globaleye",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-9",
+    "family": "Embraer E-99 / R-99A",
+    "model": "Embraer E-99 / R-99A",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Brazil"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-10",
+    "family": "EMB-145 AEW&C",
+    "model": "EMB-145 AEW&C",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Greece",
+      "Mexico"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-11",
+    "family": "DRDO Netra",
+    "model": "DRDO Netra",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "India"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-12",
+    "family": "A-50EI Phalcon",
+    "model": "A-50EI Phalcon",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "India"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-13",
+    "family": "A-50 Mainstay",
+    "model": "A-50 Mainstay",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-14",
+    "family": "A-50U",
+    "model": "A-50U",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-15",
+    "family": "A-100 Premier",
+    "model": "A-100 Premier",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-16",
+    "family": "KJ-2000",
+    "model": "KJ-2000",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-17",
+    "family": "KJ-200",
+    "model": "KJ-200",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-18",
+    "family": "KJ-500",
+    "model": "KJ-500",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-19",
+    "family": "KJ-600",
+    "model": "KJ-600",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-20",
+    "family": "ZDK-03",
+    "model": "ZDK-03",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Pakistan"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-21",
+    "family": "G550 CAEW",
+    "model": "G550 CAEW",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Israel",
+      "Italy",
+      "Singapore"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-22",
+    "family": "707 Phalcon / Condor",
+    "model": "707 Phalcon / Condor",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Chile",
+      "Israel"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-23",
+    "family": "Ka-31",
+    "model": "Ka-31",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia",
+      "India",
+      "China"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-24",
+    "family": "Merlin Crowsnest",
+    "model": "Merlin Crowsnest",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "UK"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-25",
+    "family": "Sea King ASaC.7",
+    "model": "Sea King ASaC.7",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "UK"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-26",
+    "family": "P-3 AEW&C",
+    "model": "P-3 AEW&C",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-27",
+    "family": "RC-135V/W Rivet Joint",
+    "model": "RC-135V/W Rivet Joint",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "UK"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-28",
+    "family": "RC-135U Combat Sent",
+    "model": "RC-135U Combat Sent",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "ELINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-29",
+    "family": "RC-135S Cobra Ball",
+    "model": "RC-135S Cobra Ball",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "MASINT",
+    "secondaryRoles": [],
+    "sensorCategory": "Optical and electronic collection",
+    "specificationSource": "https://www.af.mil/About-Us/Fact-Sheets/Aircraft-Factsheets/",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-30",
+    "family": "E-8C JSTARS",
+    "model": "E-8C JSTARS",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Ground surveillance",
+    "secondaryRoles": [],
+    "sensorCategory": "Ground surveillance",
+    "specificationSource": "https://www.af.mil/About-Us/Fact-Sheets/Indextitle/E/About-Us/AF-75th-Anniversary/",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-31",
+    "family": "U-2S Dragon Lady",
+    "model": "U-2S Dragon Lady",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-32",
+    "family": "RQ-4 Global Hawk",
+    "model": "RQ-4 Global Hawk",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "Japan",
+      "South Korea"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-33",
+    "family": "RQ-4D Phoenix",
+    "model": "RQ-4D Phoenix",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "NATO"
+    ],
+    "primaryRole": "Ground surveillance",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-34",
+    "family": "MQ-4C Triton",
+    "model": "MQ-4C Triton",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "Australia"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-35",
+    "family": "MQ-9 Reaper",
+    "model": "MQ-9 Reaper",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "UK",
+      "France"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-36",
+    "family": "MQ-9B SkyGuardian",
+    "model": "MQ-9B SkyGuardian",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-37",
+    "family": "MQ-9B SeaGuardian",
+    "model": "MQ-9B SeaGuardian",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-38",
+    "family": "MC-12W Liberty",
+    "model": "MC-12W Liberty",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-39",
+    "family": "E-11A BACN",
+    "model": "E-11A BACN",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Communications relay",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-40",
+    "family": "EO-5C ARL",
+    "model": "EO-5C ARL",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-41",
+    "family": "ARTEMIS Challenger 650",
+    "model": "ARTEMIS Challenger 650",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-42",
+    "family": "HADES Global 6500",
+    "model": "HADES Global 6500",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-43",
+    "family": "P-8A Poseidon",
+    "model": "P-8A Poseidon",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA",
+      "UK",
+      "Australia",
+      "India"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-44",
+    "family": "P-3 Orion",
+    "model": "P-3 Orion",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-45",
+    "family": "EP-3E Aries II",
+    "model": "EP-3E Aries II",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-46",
+    "family": "RC-12 Guardrail",
+    "model": "RC-12 Guardrail",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-47",
+    "family": "Sentinel R1",
+    "model": "Sentinel R1",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "UK"
+    ],
+    "primaryRole": "Ground surveillance",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-48",
+    "family": "Shadow R1",
+    "model": "Shadow R1",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "UK"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-49",
+    "family": "Atlantique 2",
+    "model": "Atlantique 2",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "France"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-50",
+    "family": "C-160 Gabriel",
+    "model": "C-160 Gabriel",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "France"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-51",
+    "family": "Falcon 8X Archange",
+    "model": "Falcon 8X Archange",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "France"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-52",
+    "family": "Il-20M Coot",
+    "model": "Il-20M Coot",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-53",
+    "family": "Il-22M",
+    "model": "Il-22M",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Command and control",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-54",
+    "family": "Il-22PP",
+    "model": "Il-22PP",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Electronic warfare",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-55",
+    "family": "Tu-214R",
+    "model": "Tu-214R",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-56",
+    "family": "Tu-142",
+    "model": "Tu-142",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-57",
+    "family": "Il-38 / Il-38N",
+    "model": "Il-38 / Il-38N",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-58",
+    "family": "Y-8 reconnaissance variants",
+    "model": "Y-8 reconnaissance variants",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-59",
+    "family": "Y-9 reconnaissance variants",
+    "model": "Y-9 reconnaissance variants",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-60",
+    "family": "WZ-7",
+    "model": "WZ-7",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-61",
+    "family": "BZK-005",
+    "model": "BZK-005",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "China"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-62",
+    "family": "Shahed-129",
+    "model": "Shahed-129",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Iran"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-63",
+    "family": "P-3C Orion",
+    "model": "P-3C Orion",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Pakistan"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-64",
+    "family": "RAS 72 Sea Eagle",
+    "model": "RAS 72 Sea Eagle",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Pakistan"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-65",
+    "family": "King Air ISR variants",
+    "model": "King Air ISR variants",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-66",
+    "family": "Global 6000 HAVA SOJ",
+    "model": "Global 6000 HAVA SOJ",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Turkey"
+    ],
+    "primaryRole": "Electronic warfare",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-67",
+    "family": "Bayraktar TB2",
+    "model": "Bayraktar TB2",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-68",
+    "family": "Bayraktar Akinci",
+    "model": "Bayraktar Akinci",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Turkey",
+      "Pakistan"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-69",
+    "family": "G550 Nachshon Shavit",
+    "model": "G550 Nachshon Shavit",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Israel"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-70",
+    "family": "G550 Oron",
+    "model": "G550 Oron",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Israel"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-71",
+    "family": "Heron / Heron TP",
+    "model": "Heron / Heron TP",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-72",
+    "family": "Hermes 450 / 900",
+    "model": "Hermes 450 / 900",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-73",
+    "family": "Saab S102B Korpen",
+    "model": "Saab S102B Korpen",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Sweden"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-74",
+    "family": "Kawasaki RC-2",
+    "model": "Kawasaki RC-2",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Japan"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-75",
+    "family": "Kawasaki P-1",
+    "model": "Kawasaki P-1",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Japan"
+    ],
+    "primaryRole": "Maritime ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-76",
+    "family": "EP-3",
+    "model": "EP-3",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Japan"
+    ],
+    "primaryRole": "ELINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-77",
+    "family": "Falcon 20 ECM",
+    "model": "Falcon 20 ECM",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Multiple countries"
+    ],
+    "primaryRole": "Electronic warfare",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-78",
+    "family": "Global PEGASUS",
+    "model": "Global PEGASUS",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Germany"
+    ],
+    "primaryRole": "SIGINT",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-79",
+    "family": "G550 AISREW",
+    "model": "G550 AISREW",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Italy"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-80",
+    "family": "E-99M",
+    "model": "E-99M",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Brazil"
+    ],
+    "primaryRole": "AEW&C",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-81",
+    "family": "R-99B",
+    "model": "R-99B",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Brazil"
+    ],
+    "primaryRole": "ISR",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-82",
+    "family": "E-4B Nightwatch",
+    "model": "E-4B Nightwatch",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Command and control",
+    "secondaryRoles": [],
+    "sensorCategory": "Airborne command platform",
+    "specificationSource": "https://www.af.mil/About-Us/Fact-Sheets/Aircraft-Factsheets/",
+    "verificationStatus": "Role corroborated; operators not individually verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-83",
+    "family": "E-6B Mercury",
+    "model": "E-6B Mercury",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Communications relay",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-84",
+    "family": "EC-130J Commando Solo",
+    "model": "EC-130J Commando Solo",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Information operations",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-85",
+    "family": "EC-130H Compass Call",
+    "model": "EC-130H Compass Call",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Electronic warfare",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-86",
+    "family": "EA-37B Compass Call",
+    "model": "EA-37B Compass Call",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "USA"
+    ],
+    "primaryRole": "Electronic warfare",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-87",
+    "family": "Il-80 Maxdome",
+    "model": "Il-80 Maxdome",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Command and control",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-88",
+    "family": "Il-82",
+    "model": "Il-82",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Communications relay",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  },
+  {
+    "id": "isr-89",
+    "family": "Tu-214SR",
+    "model": "Tu-214SR",
+    "icaoType": null,
+    "aliases": [],
+    "operatorCountries": [
+      "Russia"
+    ],
+    "primaryRole": "Communications relay",
+    "secondaryRoles": [],
+    "sensorCategory": null,
+    "specificationSource": null,
+    "verificationStatus": "Prior conversation; not independently verified",
+    "provenance": "User workbook; verification statements not independently audited"
+  }
+]

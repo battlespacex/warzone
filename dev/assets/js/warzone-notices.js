@@ -1,7 +1,7 @@
 import { cloneNoticeTemplate, noticeField, noticeAction, setNoticeButtonLabel } from './warzone-notice-templates.js';
 import * as Cesium from 'cesium';
 import { onLayerChange, isLayerEnabled } from './warzone-layers.js';
-import { NOTICE_LAYERS, correlateObservation, matchesNoticeLayers, noticeGeometryParts, noticeGeometryPoints, noticeStatus, nextNoticeBoundary } from '../../../apps/shared/geospatial-notices.js';
+import { NOTICE_LAYERS, correlateObservation, matchesNoticeLayers, noticeGeometryParts, noticeGeometryPoints, noticeStatus, nextNoticeBoundary, noticeGeometryClassification } from '../../../apps/shared/geospatial-notices.js';
 import { getAllLiveTrackSnapshots } from './warzone-live-airforce.js';
 import { getAllNavalSnapshots } from './warzone-live-naval.js';
 import { getActiveRegion, onRegionChange } from './warzone-region-selector.js';
@@ -30,6 +30,9 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     let popupSide = null, popupTopOffset = null;
     const fading = new Map();
     const markerImages = new Map();
+    let diagnostics = null;
+    const readDiagnostics = () => diagnostics && {...diagnostics,rendered:new Set((source?.entities.values||[]).map(entity=>entity.__noticeId).filter(Boolean)).size};
+    window.__stratopsNoticeDiagnostics = readDiagnostics;
     let popupResize = null;
     let hoverFrame = 0, hovered = null, hoverPosition = null;
     function clearNoticeHover() {
@@ -66,7 +69,8 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         const coords = noticeGeometryPoints(n.geometry);
         if (!coords.length) return;
         const sphere = Cesium.BoundingSphere.fromPoints(coords.map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat)));
-        sphere.radius = Math.max(sphere.radius, n.geometry.type === 'Point' ? (n.metadata?.radiusNm || 0) * 1852 : 0, 250);
+        const partRadius=Math.max(0,...noticeGeometryParts(n.geometry).map(g=>g.radiusMeters||0));
+        sphere.radius = Math.max(sphere.radius+partRadius, n.geometry.type === 'Point' ? (n.metadata?.radiusNm || 0) * 1852 : 0, 250);
         const view = noticeFocus?.view || { position: Cesium.Cartesian3.clone(camera.positionWC), direction: Cesium.Cartesian3.clone(camera.directionWC), up: Cesium.Cartesian3.clone(camera.upWC) };
         noticeFocus = { id: n.id, view };
         camera.cancelFlight?.(); camera.flyToBoundingSphere(sphere, { duration: 1 });
@@ -87,6 +91,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
             markerRadius: notamNumber('marker-radius'), markerBorder: notamNumber('marker-border-width'),
             markerColor: notamColor('marker-color'), markerBackground: notamColor('marker-background'),
             markerHoverScale: notamNumber('marker-hover-scale'), markerSelectedScale: notamNumber('marker-selected-scale'),
+            markerOpacity: Number.isFinite(parseFloat(notam('marker-opacity'))) ? Math.max(0,Math.min(1,parseFloat(notam('marker-opacity')))) : 1,
             connectorColor: notamColor('connector-color'), connectorMidpoint: notam('connector-fade-midpoint'), popupGap: notamNumber('popup-gap'),
             opacity: number('fill-opacity', .07, 0, 1), hatchOpacity: number('hatch-opacity', .22, 0, 1), stripes: number('hatch-repeat', 32, 2, 128),
             width: number('line-width', 2, 1, 10), height: number('height', 60, 1, 1000), point: number('marker-size', 10, 3, 32), enclosures: number('show-radius', 0, 0, 1) === 1, previewDistance: number('preview-distance', 1800000, 1000, 20000000), previewDelay: number('preview-delay', 180, 0, 2000), labelDistance: number('label-distance', 500000, 0, 20000000), labelSize: number('label-size', 12, 8, 32), hatchWidth: number('hatch-width', 1, .1, 12), hatchSpacing: number('hatch-spacing', 12, 2, 64), hatchAngle: number('hatch-angle', 45, -180, 180)
@@ -95,7 +100,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     let style = readStyle(), detailOpen = false;
     const materialCache = new Map(); let materialStyle = null;
     const noticeColor = n => ['high', 'critical'].includes(n.metadata?.severity) ? style.critical : style.line;
-    const renderKey = n => JSON.stringify([n.geometry, n.metadata?.radiusNm, n.metadata?.radiusSource, n.metadata?.corridorWidthMeters, n.metadata?.severity, style]);
+    const renderKey = n => JSON.stringify([n.geometry, n.geometrySource, n.geometryAccuracy, n.metadata?.radiusNm, n.metadata?.radiusSource, n.metadata?.corridorWidthMeters, n.metadata?.severity, style]);
     function createHatchMaterial(hatch = style.hatch, fill = style.fill) {
         const image = document.createElement('canvas'); image.width = image.height = Math.round(style.hatchSpacing);
         const ctx = image.getContext('2d'); if (!ctx) throw Error('NOTAM hatch canvas is unavailable');
@@ -114,26 +119,29 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     }
     function graphics(n) {
         let material; const line = noticeColor(n);
-        if (n.geometry?.type === 'Polygon' || (n.geometry?.type === 'LineString' && n.metadata?.corridorWidthMeters) || ((style.enclosures || n.metadata?.radiusSource === 'published') && n.geometry?.type === 'Point' && n.metadata?.radiusNm)) {
+        const approximate=noticeGeometryClassification(n)==='Approximate coverage';
+        const outline=approximate?new Cesium.PolylineDashMaterialProperty({color:line}):line;
+        if (n.geometry?.type === 'Polygon' || (n.geometry?.type === 'LineString' && n.metadata?.corridorWidthMeters) || ((style.enclosures || ['published','derived'].includes(n.metadata?.radiusSource)) && n.geometry?.type === 'Point' && n.metadata?.radiusNm)) {
             if (materialStyle !== style) { materialCache.clear(); materialStyle = style; }
             const key = line === style.critical ? 'critical' : 'default'; if (!materialCache.has(key)) materialCache.set(key, key === 'critical' ? createHatchMaterial(line, line) : createHatchMaterial()); material = materialCache.get(key);
+            if(approximate)material=line.withAlpha(style.opacity/2);
         }
         if (n.geometry?.type === 'Polygon') {
             const rings = n.geometry.coordinates, positions = ring => Cesium.Cartesian3.fromDegreesArray(ring.flat());
             return {
                 polygon: { hierarchy: new Cesium.PolygonHierarchy(positions(rings[0]), rings.slice(1).map(r => new Cesium.PolygonHierarchy(positions(r)))), material, stRotation: style.hatchAngle * Math.PI / 180, outline: false },
-                polyline: { positions: positions(rings[0]), clampToGround: true, width: style.width, material: line }
+                polyline: { positions: positions(rings[0]), clampToGround: true, width: style.width, material: outline }
             };
         }
         if (n.geometry?.type === 'Point') {
             const [lon, lat] = n.geometry.coordinates;
             let boundary;
-            if ((style.enclosures || n.metadata?.radiusSource === 'published') && n.metadata?.radiusNm) {
+            if ((style.enclosures || ['published','derived'].includes(n.metadata?.radiusSource)) && n.metadata?.radiusNm) {
                 const geometry = Cesium.EllipseOutlineGeometry.createGeometry(new Cesium.EllipseOutlineGeometry({ center: Cesium.Cartesian3.fromDegrees(lon, lat), semiMajorAxis: n.metadata.radiusNm * 1852, semiMinorAxis: n.metadata.radiusNm * 1852, granularity: Cesium.Math.RADIANS_PER_DEGREE * 5 }));
-                const values = geometry.attributes.position.values, positions = []; for (let i = 0; i < values.length; i += 3)positions.push(Cesium.Cartesian3.fromArray(values, i)); positions.push(positions[0]); boundary = { positions, clampToGround: true, width: style.width, material: line };
+                const values = geometry.attributes.position.values, positions = []; for (let i = 0; i < values.length; i += 3)positions.push(Cesium.Cartesian3.fromArray(values, i)); positions.push(positions[0]); boundary = { positions, clampToGround: true, width: style.width, material: outline };
             }
             return {
-                position: Cesium.Cartesian3.fromDegrees(lon, lat, style.height), ...(String(n.noticeType).toLowerCase() === 'notam' ? { billboard: { image: markerImage(style.markerColor || line), color: Cesium.Color.WHITE, width: style.markerWidth, height: style.markerHeight, scale: selected?.id === n.id ? style.markerSelectedScale : 1 } } : { point: { pixelSize: style.point, color: line, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 } }),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, style.height), billboard: { image: markerImage(style.markerColor || line), color: Cesium.Color.WHITE.withAlpha(style.markerOpacity), width: style.markerWidth, height: style.markerHeight, scale: selected?.id === n.id ? style.markerSelectedScale : 1 },
                 ...(boundary ? { ellipse: { semiMajorAxis: n.metadata.radiusNm * 1852, semiMinorAxis: n.metadata.radiusNm * 1852, material, stRotation: style.hatchAngle * Math.PI / 180, outline: false }, polyline: boundary } : {})
             };
         }
@@ -148,7 +156,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     function removeNoticeEntities(id) { for (const key of entityIds.get(id) || [id]) source?.entities.removeById(key); entityIds.delete(id); }
     function applyNoticeGraphics(n) {
         const ids = []; noticeGeometryParts(n.geometry).forEach((geometry, i) => {
-            const id = i === 0 ? n.id : n.id + '::part:' + i, part = { ...n, geometry }, next = graphics(part), position = next.position || anchor(part);
+            const id = i === 0 ? n.id : n.id + '::part:' + i, part = { ...n, geometry, metadata:{...n.metadata,...(geometry.radiusMeters?{radiusNm:geometry.radiusMeters/1852,radiusSource:/^derived/i.test(n.geometrySource||'')?'derived':'published'}:{}),...(geometry.corridorWidthMeters?{corridorWidthMeters:geometry.corridorWidthMeters}:{})} }, next = graphics(part), position = next.position || anchor(part);
             let entity = source.entities.getById(id); if (!entity) entity = source.entities.add({ id });
             entity.__noticeId = n.id; entity.__noticeColor = noticeColor(n); entity.position = position;
             for (const key of ['polygon', 'polyline', 'corridor', 'ellipse', 'point', 'billboard']) entity[key] = next[key];
@@ -157,6 +165,11 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
                 pixelOffset: new Cesium.Cartesian2(10, -10), distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, style.labelDistance)
             };
             ids.push(id);
+            if(geometry.type==='Polygon')geometry.coordinates.slice(1).forEach((ring,hole)=>{
+                const holeId=id+'::hole:'+hole;
+                let edge=source.entities.getById(holeId);if(!edge)edge=source.entities.add({id:holeId});
+                edge.__noticeId=n.id;edge.polyline={positions:Cesium.Cartesian3.fromDegreesArray(ring.flat()),clampToGround:true,width:style.width,material:noticeColor(n)};ids.push(holeId);
+            });
         }); entityIds.set(n.id, ids);
     }
     function takeShot(n, entity) {
@@ -193,7 +206,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         noticeField(view, 'category').textContent = n.activityType || n.noticeType;
         for (const [name, value] of Object.entries({
             status: currentStatus(n).toLowerCase().replace(/^./, c => c.toUpperCase()),
-            area: n.region || n.fir || n.country || 'Published location',
+            area: [n.region || n.fir || n.country || 'Published location',noticeGeometryClassification(n)].join(' · '),
             validity: n.effectiveUntil || (n.metadata?.permanent ? 'Permanent' : 'Not published')
         })) {
             const field = noticeField(view, name);
@@ -323,7 +336,7 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
         brief.textContent = [n.activityType, n.status, n.country, n.fir, n.effectiveFrom && 'From ' + n.effectiveFrom, n.effectiveUntil && 'Until ' + n.effectiveUntil, n.summary].filter(Boolean).join(' · ');
         const actions = view.querySelector('.wz-notice-actions'); body.append(...view.children);
         shotButton(actions, n, entity);
-        for (const [key, value] of Object.entries({ Category: n.noticeType, ID: n.sourceId, Issuer: n.issuer, Country: n.country, Region: n.region, FIR: n.fir, NAVAREA: n.navarea, Activity: n.activityType, Status: n.status, Issued: n.issuedAt, From: n.effectiveFrom, Until: n.effectiveUntil, Schedule: n.schedule, Altitude: [n.lowerAltitude, n.upperAltitude, n.altitudeReference].filter(Boolean).join(' / '), Coordinates: JSON.stringify(n.geometry?.coordinates || null), Radius: n.metadata?.radiusNm ? `${n.metadata.radiusNm} NM` : 'Not published', Precision: [n.geometryAccuracy || 'Location unavailable', n.metadata?.boundaryError].filter(Boolean).join('; '), Confidence: n.geometryConfidence, Verified: n.lastVerifiedAt || 'Unverified', Fetched: n.lastFetchedAt, Summary: n.summary, 'Original notice': n.rawText, Provenance: n.provenance?.extraction })) {
+        for (const [key, value] of Object.entries({ Category: n.noticeType, ID: n.sourceId, Issuer: n.issuer, Country: n.country, Region: n.region, FIR: n.fir, NAVAREA: n.navarea, Activity: n.activityType, Status: n.status, Issued: n.issuedAt, From: n.effectiveFrom, Until: n.effectiveUntil, Schedule: n.schedule, Altitude: [n.lowerAltitude, n.upperAltitude, n.altitudeReference].filter(Boolean).join(' / '), Coordinates: JSON.stringify(n.geometry?.coordinates || null), Radius: n.metadata?.radiusNm ? `${n.metadata.radiusNm} NM` : 'Not published', Precision: [noticeGeometryClassification(n), n.geometryAccuracy || 'Location unavailable', n.metadata?.boundaryError].filter(Boolean).join('; '), Confidence: n.geometryConfidence, Verified: n.lastVerifiedAt || 'Unverified', Fetched: n.lastFetchedAt, Summary: n.summary, 'Original notice': n.rawText, Provenance: n.provenance?.extraction })) {
             noticeField(list, key).textContent = value || 'Unknown';
         }
         for (const ref of n.sourceRecords || []) { const li = cloneNoticeTemplate('row'); noticeField(li, 'label').textContent = ref.provider; noticeField(li, 'value').textContent = ref.rawText; list.append(li); }
@@ -419,6 +432,9 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
             const apply = () => {
                 if (current !== generation || !source) return;
                 total = data.total || 0; const notices = (data.notices || []).filter(matches).filter(n => !['live', 'active', 'upcoming'].includes(viewStatus) || !['expired', 'cancelled', 'superseded'].includes(currentStatus(n))), ids = new Set(notices.map(n => n.id)); source.entities.suspendEvents(); try {
+                    diagnostics={server:data.diagnostics||null,received:(data.notices||[]).length,filteredOut:(data.notices||[]).length-notices.length,withGeometry:notices.filter(n=>n.geometry).length,
+                        geometry:Object.fromEntries(['Published boundary','Derived boundary','Approximate coverage','Location only','Unavailable'].map(kind=>[kind,notices.filter(n=>noticeGeometryClassification(n)===kind).length])),
+                        pagination:{offset,total,pageOnly:true,hasMore:data.pagination?.hasMore??offset+(data.notices||[]).length<total},partial:data.partial===true};
                     for (const entity of source.entities.values.slice()) if (!ids.has(entity.__noticeId || entity.id)) source.entities.remove(entity);
                     for (const id of records.keys()) if (!ids.has(id)) { if (noticeFocus?.id === id) unfocusNotice(); records.delete(id); renderKeys.delete(id); entityIds.delete(id); }
                 } finally { source.entities.resumeEvents(); }
@@ -474,6 +490,6 @@ export function initNoticeLayers(viewer, { bindFloatingPanel, canRefresh = () =>
     document.addEventListener('wz:notice-style-refresh', restyle);
     document.addEventListener('wz:region-camera-settled', resumeScope);
     const removeMoveEnd = viewer.camera?.moveEnd?.addEventListener?.(resumeScope);
-    owner = { viewer, dispose() { styleObserver?.disconnect(); if (styleFrame) cancelAnimationFrame(styleFrame); document.removeEventListener('load', stylesheetLoaded, true); clear(); unsubscribe?.(); unsubscribeRegion?.(); document.removeEventListener('pointerdown', dismiss); document.removeEventListener('wz:asset-focus-changed', yieldFocus); document.removeEventListener('pointerup', releasePointer); document.removeEventListener('pointercancel', releasePointer); document.removeEventListener('wheel', wheel); window.removeEventListener?.('blur', releasePointer); document.removeEventListener('keydown', dismiss); window.removeEventListener?.('resize', restyle); document.removeEventListener('wz:notice-style-refresh', restyle); document.removeEventListener('wz:region-camera-settled', resumeScope); removeMoveEnd?.(); } }; sync();
+    owner = { viewer, dispose() { if(window.__stratopsNoticeDiagnostics===readDiagnostics)delete window.__stratopsNoticeDiagnostics; styleObserver?.disconnect(); if (styleFrame) cancelAnimationFrame(styleFrame); document.removeEventListener('load', stylesheetLoaded, true); clear(); unsubscribe?.(); unsubscribeRegion?.(); document.removeEventListener('pointerdown', dismiss); document.removeEventListener('wz:asset-focus-changed', yieldFocus); document.removeEventListener('pointerup', releasePointer); document.removeEventListener('pointercancel', releasePointer); document.removeEventListener('wheel', wheel); window.removeEventListener?.('blur', releasePointer); document.removeEventListener('keydown', dismiss); window.removeEventListener?.('resize', restyle); document.removeEventListener('wz:notice-style-refresh', restyle); document.removeEventListener('wz:region-camera-settled', resumeScope); removeMoveEnd?.(); } }; sync();
 }
 export function disposeNoticeLayers() { owner?.dispose(); owner = null; }

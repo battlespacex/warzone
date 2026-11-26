@@ -1,3 +1,4 @@
+import { resolveIntelligenceAircraft } from "../../shared/intelligence-aircraft-registry.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -84,9 +85,9 @@ class Element {
 test("focus expands one keyed card; Collapse and a different selection preserve the Unlock control and telemetry updates", () => {
     const essential = fs.readFileSync(new URL("../../../dev/assets/js/essential.js", import.meta.url), "utf8");
     const telemetry = fs.readFileSync(new URL("../../../dev/assets/js/warzone-aircraft-telemetry.js", import.meta.url), "utf8")
-        .replace(/^export \{[^\n]+\};\r?\n/gm, "").replace(/export /g, "");
+        .replace(/^import[^\n]+\r?\n/gm, "").replace(/^export \{[^\n]+\};\r?\n/gm, "").replace(/export /g, "");
     const fn = (name) => { const start = essential.indexOf(`function ${name}(`); return essential.slice(start, essential.indexOf("\n}", start) + 2); };
-    const context = vm.createContext({ document: { createElement: (tag) => new Element(tag), createTextNode: (value) => { const el = new Element("#text"); el.textContent = value; return el; } },
+    const context = vm.createContext({ resolveIntelligenceAircraft, document: { createElement: (tag) => new Element(tag), createTextNode: (value) => { const el = new Element("#text"); el.textContent = value; return el; } },
         getAircraftWidgetDetailLabel: (track) => track.type_code, getAircraftDisplayTitle: (track) => track.callsign,
         getAircraftWidgetStatusLabel: () => "Active", getAircraftWidgetTimeLabel: () => "Now",
         getAssetFocusController: () => ({ canEnterFocus: () => true }), recordRealtimeWork() {} });
@@ -127,8 +128,8 @@ test("focus expands one keyed card; Collapse and a different selection preserve 
 
 test("telemetry rendering changes plain fields into labelled fields without stale cache reuse", () => {
     const source = fs.readFileSync(new URL("../../../dev/assets/js/warzone-aircraft-telemetry.js", import.meta.url), "utf8")
-        .replace(/^export \{[^\n]+\};\r?\n/gm, "").replace(/export /g, "");
-    const context = vm.createContext({ document: { createElement: tag => new Element(tag) } });
+        .replace(/^import[^\n]+\r?\n/gm, "").replace(/^export \{[^\n]+\};\r?\n/gm, "").replace(/export /g, "");
+    const context = vm.createContext({ resolveIntelligenceAircraft, document: { createElement: tag => new Element(tag) } });
     vm.runInContext(source, context);
     const container = new Element("div"), fields = [["Callsign", "<reported text>"]];
     context.renderAircraftTelemetry(container, fields, false);

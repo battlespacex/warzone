@@ -1,3 +1,4 @@
+import { resolveIntelligenceAircraft } from "../../../apps/shared/intelligence-aircraft-registry.js";
 // Display reported telemetry only. Render/interpolation defaults are not measurements.
 const number = (value) => value == null || value === "" ? null : Number.isFinite(Number(value)) ? Number(value) : null;
 export { number as aircraftTelemetryNumber };
@@ -49,6 +50,9 @@ export function getAircraftTelemetry(track = {}) {
         ["Record updated (UTC)", timestamp(track.updated_at)],
         ["Contact state", track.active === false ? "Ended / stale telemetry" : sourceStale ? "Stale source observation" : track.liveness_state || "Source-reported observation"],
     ];
+    const intelligence = resolveIntelligenceAircraft(track, track.subcategory || metadata.role);
+    if (intelligence) fields.push(["Intelligence roles", [intelligence.primaryRole, ...intelligence.secondaryRoles].join(" / ")],
+        ["Sensor information", intelligence.sensorCategory || "Unavailable"], ["Specification verification", intelligence.verificationStatus]);
     return { fields, callsign, operator, country: text(metadata.country), direction, speedLabel: value(speed, "kt"), altitudeLabel: value(altitude, "ft") };
 }
 

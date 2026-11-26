@@ -46,7 +46,7 @@ test("general events exclude aircraft telemetry before ordering and limiting", (
         .filter((index) => index >= 0);
 
     assert.equal(MAP_EVENT_HISTORY_WINDOW_HOURS, 168);
-    assert.equal(filterIndexes.length, 4);
+    assert.equal(filterIndexes.length, 5);
     assert.ok(filterIndexes.every((index) => index < orderIndex));
     assert.ok(filterIndexes.every((index) => index < limitIndex));
     assert.match(recorder.calls[filterIndexes[0]][1], /flight_tracking/);

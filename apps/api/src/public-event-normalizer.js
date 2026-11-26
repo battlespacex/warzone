@@ -359,6 +359,8 @@ function pickMapMetadata(event = {}, publicEvent = {}) {
         ? event.metadata
         : {};
     const allowedKeys = [
+        "intelligence_pipeline",
+        "timeline",
         "track_type",
         "mmsi",
         "ship_type",

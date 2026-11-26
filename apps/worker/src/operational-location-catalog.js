@@ -32,6 +32,10 @@ const OPERATIONAL_LOCATION_CATALOG = [
   { label: "Engels-2 Air Base", place: "Engels-2 Air Base", city: "Engels", country: "Russia", region: "Saratov Oblast", lat: 51.4803, lon: 46.2131, precision: "facility", aliases: ["engels-2 air base", "engels 2 air base", "engels air base"] },
 
   // Frequently reported localities
+  // Gazetteer points identify the reported locality, never a verified impact position.
+  { label: "Gaza City, Palestinian Territories", city: "Gaza City", country: "Palestinian Territories", region: "Gaza Strip", lat: 31.50161, lon: 34.46672, precision: "city", aliases: ["gaza city"], conflictOnly: true, reference: "https://www.geonames.org/281133/gaza.html" },
+  { label: "Krasnodar, Russia", city: "Krasnodar", country: "Russia", region: "Krasnodar Krai", lat: 45.032778, lon: 38.976944, precision: "city", aliases: ["krasnodar"], conflictOnly: true, reference: "https://ungegn.un.org/dashboard/cities/details?id=1609" },
+  { label: "Khasab, Oman", city: "Khasab", country: "Oman", region: "Musandam Governorate", lat: 26.17993, lon: 56.24774, precision: "city", aliases: ["khasab"], conflictOnly: true, reference: "https://www.geonames.org/287614/khasab.html" },
   { label: "Riyadh, Saudi Arabia", city: "Riyadh", country: "Saudi Arabia", region: "Riyadh Province", lat: 24.6320, lon: 46.7151, precision: "city", aliases: ["riyadh"] },
   { label: "Dammam, Saudi Arabia", city: "Dammam", country: "Saudi Arabia", region: "Eastern Province", lat: 26.4207, lon: 50.0888, precision: "city", aliases: ["dammam"] },
   { label: "Jeddah, Saudi Arabia", city: "Jeddah", country: "Saudi Arabia", region: "Makkah Province", lat: 21.5433, lon: 39.1728, precision: "city", aliases: ["jeddah"] },

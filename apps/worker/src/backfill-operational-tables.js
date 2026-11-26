@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { loadWorkerEnv } from "./env.js";
 import { supabase } from "./supabase.js";
+import { linkEventSources } from "./event-source-links.js";
 import { runStatusFeedSync } from "./status-feed-runner.js";
 
 loadWorkerEnv();
@@ -224,14 +225,8 @@ async function backfillEventSources() {
 
   let inserted = 0;
   for (const batch of chunk(rows)) {
-    const { data, error } = await supabase
-      .from("event_sources")
-      .insert(batch)
-      .select("id");
-    if (error) {
-      throw new Error(`event_sources insert failed: ${error.message}`);
-    }
-    inserted += Array.isArray(data) ? data.length : 0;
+    const linked = await linkEventSources(supabase, batch);
+    inserted += linked.inserted_count || 0;
   }
 
   return {

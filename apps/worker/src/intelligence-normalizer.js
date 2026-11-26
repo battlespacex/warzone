@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import { lookupLocalCountry } from "../../shared/country-reference.js";
+import { isConflictIntelligenceEvent } from "../../shared/conflict-retention.js";
 import {
   LOCATION_PRECISION,
   isMapMarkerPrecision,
@@ -557,13 +559,15 @@ function scoreLocationMatch(entry, alias, source, index) {
   return score;
 }
 
-function hasIncidentLocationContext(text = "", alias = "", index = -1) {
+function hasIncidentLocationContext(text = "", alias = "", index = -1, options = {}) {
   if (index < 0) return false;
   const before = String(text || "").slice(Math.max(0, index - 70), index).toLowerCase();
   const after = String(text || "").slice(index + String(alias || "").length, index + String(alias || "").length + 55).toLowerCase();
   if (/\b(?:source|official|government|ministry|newspaper|agency)\s+(?:says?|said|reports?|reported)\s*$/.test(before)) return false;
   if (/\b(?:will|could|may|might)\s+(?:halt|stop|end|resume|launch)\b/.test(after)) return false;
   if (/\b(?:in|near|at|around|outside|over|from|toward|towards|into|across|north of|south of|east of|west of)\s*$/.test(before)) return true;
+  if (options.conflictIntelligence && /\b(?:in|near|at|around|outside)\s+[a-z]+['’]s\s+(?:(?:houthi-held|rebel-held|government-held|northern|southern|eastern|western)\s+)?$/.test(before)) return true;
+  if (options.conflictIntelligence && /\b(?:in|near|at|around|outside)\s+(?:northern|southern|eastern|western|central)\s+$/.test(before)) return true;
   if (/\b(?:strike|strikes|struck|attack|attacked|hit|hits|explosion|blast|intercepted|shelling|artillery|raid|crash|fire)\s+(?:reported\s+)?$/.test(before)) return true;
   if (/^\s*[,;:\-]?\s*(?:was|were|is|has been|hit|struck|attacked|shelled|bombed|exploded|intercepted|reports?|reported)\b/.test(after)) return true;
   if (!before.trim() && /^\s*[,;:\-]?\s*(?:drone|missile|rocket|airstrike|strike|attack|explosion|blast|shelling|artillery|raid|fire)\b/.test(after)) return true;
@@ -576,14 +580,18 @@ function hasExplicitLocationPreposition(text = "", index = -1) {
   return /\b(?:in|near|at|around|outside|over|from|toward|towards|into|across|north of|south of|east of|west of)\s*$/.test(before);
 }
 
-function findTextLocationCandidates(text = "", source = "summary") {
+function findTextLocationCandidates(text = "", source = "summary", options = {}) {
   const candidates = [];
   for (const entry of EVENT_LOCATION_CATALOG) {
+    if (entry.conflictOnly && !options.conflictIntelligence) continue;
     for (const alias of entry.aliases || []) {
-      const index = matchAlias(text, alias);
-      if (index === -1) continue;
+      // A publisher/actor mention may precede the actual incident location.
+      for (const match of String(text).matchAll(new RegExp(`\\b${escapeRegex(alias)}\\b`, "gi"))) {
+      const index = match.index;
+      if (!options.conflictIntelligence && index !== matchAlias(text, alias)) break;
       const precision = normalizeLocationPrecision(entry.precision);
-      const incidentContext = hasIncidentLocationContext(text, alias, index);
+      const incidentContext = hasIncidentLocationContext(text, alias, index, options);
+      if (options.conflictIntelligence && entry.precision === "country_hint" && ![entry.country, entry.label].some((name) => String(name || "").toLowerCase() === alias.toLowerCase())) continue;
       if (entry.precision === "country_hint" && !hasExplicitLocationPreposition(text, index)) {
         continue;
       }
@@ -604,6 +612,7 @@ function findTextLocationCandidates(text = "", source = "summary") {
         incident_context: incidentContext,
         score: scoreLocationMatch(entry, alias, source, index)
       });
+      }
     }
   }
   return candidates;
@@ -751,13 +760,23 @@ function getCountryContextEntries() {
 
 const EVENT_COUNTRY_CONTEXTS = getCountryContextEntries();
 
-function findExplicitCountryContexts(textSources = []) {
+function findExplicitCountryContexts(textSources = [], options = {}) {
   const matches = [];
   const seen = new Set();
   for (const [source, value] of textSources) {
     const text = String(value || "");
     for (const entry of EVENT_COUNTRY_CONTEXTS) {
-      const alias = entry.aliases.find((candidate) => matchAlias(text, candidate) !== -1);
+      // Country names describing the incident area can constrain a geocode;
+      // attacker nationality or "Iran says" cannot veto a named foreign locality.
+      const alias = entry.aliases.find((candidate) => {
+        if (!options.conflictIntelligence) return matchAlias(text, candidate) !== -1;
+        if (![entry.country, entry.label].some((name) => String(name || "").toLowerCase() === candidate)) return false;
+        for (const match of text.matchAll(new RegExp(`\\b${escapeRegex(candidate)}\\b`, "gi"))) {
+          const before = text.slice(Math.max(0, match.index - 24), match.index);
+          if (/\b(?:in|inside|within|across|throughout)\s*$/i.test(before)) return true;
+        }
+        return false;
+      });
       if (!alias) continue;
       const key = entry.country.toLowerCase();
       if (seen.has(key)) continue;
@@ -866,7 +885,8 @@ function buildLocationMetadata(event = {}, location = {}) {
       regional_anchor_longitude: hasRegionalAnchor ? Number(location.anchor_lon) : null,
       precision: location.precision || LOCATION_PRECISION.UNKNOWN,
       confidence: Number.isFinite(Number(location.confidence)) ? Number(location.confidence) : 0,
-      method: location.method || location.source || "not_found"
+      method: location.method || location.source || "not_found",
+      reference: location.reference || null
     },
     normalization: {
       ...existingNormalization,
@@ -935,7 +955,8 @@ function normalizeEventRowForStorage(event = {}) {
   };
 }
 
-function resolveEventLocation(item = {}) {
+function resolveEventLocation(item = {}, options = {}) {
+  const geographyOptions = { conflictIntelligence: options.conflictIntelligence === true || isConflictIntelligenceEvent(item) };
   const existingLocation = readEventLocation(item);
   const trustedStoredPoint = Boolean(
     existingLocation.precision &&
@@ -983,9 +1004,9 @@ function resolveEventLocation(item = {}) {
   const textCoordinates = extractCoordinatesFromText(textSources.map(([, value]) => value).join(" "));
   if (textCoordinates) return { ...textCoordinates, score: 110 };
 
-  const explicitCountries = findExplicitCountryContexts(textSources);
+  const explicitCountries = findExplicitCountryContexts(textSources, geographyOptions);
   const candidates = textSources
-    .flatMap(([source, value]) => findTextLocationCandidates(value, source))
+    .flatMap(([source, value]) => findTextLocationCandidates(value, source, geographyOptions))
     .filter((candidate) => (
       !candidate.country ||
       !explicitCountries.length ||
@@ -1024,6 +1045,7 @@ function resolveEventLocation(item = {}) {
       method,
       source: best.match_source,
       matched_alias: best.matched_alias,
+      reference: best.reference || null,
       confidence,
       quality: precision.toLowerCase(),
       mapEligible,
@@ -1164,8 +1186,8 @@ function normalizeForHash(value = "") {
 }
 
 function makeDedupeKey(item = {}, fields = {}) {
-  const occurredAt = safeDate(item.published_at || item.fetched_at) || new Date().toISOString();
-  const hourBucket = occurredAt.slice(0, 13);
+  const occurredAt = safeDate(item.occurred_at || item.published_at);
+  const hourBucket = occurredAt ? occurredAt.slice(0, 13) : "unknown";
   const normalizedTitle = normalizeForHash(fields.title || item.title || item.url || item.guid || "");
   const locationKey = normalizeForHash(fields.location_label || "");
   const category = fields.category || "event";
@@ -1186,7 +1208,8 @@ function getIncidentActionSignature(item = {}, category = "") {
 }
 
 function makeEventFingerprint(item = {}, fields = {}) {
-  const occurredAtMs = Date.parse(item.occurred_at || item.published_at || item.fetched_at || "");
+  const strictTimestamp = fields.conflictIntelligence === true || isConflictIntelligenceEvent(item);
+  const occurredAtMs = Date.parse(item.occurred_at || item.raw?._original_occurred_at || item.published_at || (!strictTimestamp && item.fetched_at) || "");
   const sixHourBucket = Number.isFinite(occurredAtMs) ? Math.floor(occurredAtMs / (6 * 60 * 60 * 1000)) : "unknown";
   const location = fields.location || resolveEventLocation(item);
   const locationKey = normalizeForHash([
@@ -1213,7 +1236,7 @@ function normalizeConflictFeedItemForStorage(item = {}) {
   const quality = hasExistingQuality
     ? existingQuality
     : aggregateEventQuality([item]);
-  const reportLocation = resolveEventLocation(item);
+  const reportLocation = resolveEventLocation(item, { conflictIntelligence: true });
   const raw = item.raw && typeof item.raw === "object" && !Array.isArray(item.raw) ? item.raw : {};
   return {
     ...item,
@@ -1222,6 +1245,8 @@ function normalizeConflictFeedItemForStorage(item = {}) {
     summary,
     published_at: safeDate(item.published_at),
     fetched_at: safeDate(item.fetched_at) || new Date().toISOString(),
+    lat: reportLocation.mapEligible ? safeNumber(reportLocation.lat) : null,
+    lon: reportLocation.mapEligible ? safeNumber(reportLocation.lon) : null,
     region: isBlankOrUnknown(item.region) ? null : cleanDisplayText(item.region, 80),
     country: isBlankOrUnknown(item.country) ? null : cleanDisplayText(item.country, 80),
     category: cleanDisplayText(item.category, 80) || "general",
@@ -1237,6 +1262,7 @@ function normalizeConflictFeedItemForStorage(item = {}) {
     corroboration_state: quality.corroboration_state,
     raw: {
       ...raw,
+      _original_occurred_at: safeDate(item.occurred_at || raw._original_occurred_at),
       _event_quality: quality,
       _event_location: {
         country: reportLocation.country || null,
@@ -1253,7 +1279,8 @@ function normalizeConflictFeedItemForStorage(item = {}) {
           : null,
         precision: reportLocation.precision || LOCATION_PRECISION.UNKNOWN,
         confidence: Number.isFinite(Number(reportLocation.confidence)) ? Number(reportLocation.confidence) : 0,
-        method: reportLocation.method || reportLocation.source || "not_found"
+        method: reportLocation.method || reportLocation.source || "not_found",
+        reference: reportLocation.reference || null
       }
     }
   };
@@ -1268,17 +1295,19 @@ function normalizeConflictItemToEventPayload(item = {}) {
   // ordinary news (for example an arms sale) into a map event.
   const narrativeText = getEventNarrativeText(normalizedItem);
   const classificationText = [narrativeText, normalizedItem.source_category].filter(Boolean).join(" ");
-  const location = resolveEventLocation(normalizedItem);
+  const location = resolveEventLocation(normalizedItem, { conflictIntelligence: true });
   const category = classifyCategory(classificationText);
   const severity = inferSeverity(narrativeText || classificationText);
   const confidence = deriveConfidence(normalizedItem, severity, location);
   const weaponType = inferWeaponType(classificationText);
-  const hasIncidentSignal = Boolean(title && hasOperationalEventSignal(narrativeText));
+  // Advocacy/roundups may mention attacks without reporting a new incident.
+  const backgroundHeadline = /\b(?:roundup|opinion|call(?:s|ed)? for (?:an? )?end|calling for (?:an? )?end|calling for end)\b/i.test(title || "");
+  const hasIncidentSignal = Boolean(title && !backgroundHeadline && hasOperationalEventSignal(narrativeText));
   const intelWireOnly = isIntelWireOnlyNewsText(narrativeText);
+  const occurredAt = safeDate(item.occurred_at || normalizedItem.raw?._original_occurred_at || normalizedItem.published_at);
   const mapEligible = Boolean(location.mapEligible && hasIncidentSignal && !intelWireOnly);
-  const occurredAt = safeDate(normalizedItem.published_at || normalizedItem.fetched_at) || new Date().toISOString();
   const locationMetadata = buildLocationMetadata(normalizedItem, { ...location, mapEligible });
-  const eventFingerprint = makeEventFingerprint(normalizedItem, { category, location });
+  const eventFingerprint = makeEventFingerprint(normalizedItem, { category, location, conflictIntelligence: true });
   const eventQuality = {
     ...readEventQuality(normalizedItem),
     event_fingerprint: eventFingerprint,
@@ -1307,6 +1336,7 @@ function normalizeConflictItemToEventPayload(item = {}) {
       lat: mapEligible ? location.lat : null,
       lon: mapEligible ? location.lon : null,
       location_label: location.label || null,
+      country_code: lookupLocalCountry(location.country)?.alpha2 || null,
       confidence,
       severity,
       weapon_type: weaponType,
@@ -1319,6 +1349,14 @@ function normalizeConflictItemToEventPayload(item = {}) {
       tags: ["rss", "conflict-feed", "operational", "normalized"],
       metadata: {
         ...locationMetadata,
+        intelligence_pipeline: "conflict",
+        timeline: {
+          occurred_at: occurredAt,
+          published_at: normalizedItem.published_at,
+          ingested_at: normalizedItem.fetched_at,
+          timestamp_basis: item.occurred_at || normalizedItem.raw?._original_occurred_at
+            ? "source_occurrence" : "source_publication",
+        },
         event_quality: eventQuality,
         normalization: {
           ...locationMetadata.normalization,

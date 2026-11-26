@@ -49,19 +49,19 @@ function harness() {
         track: () => tracks.get(c.getTrackKey(key, preset.members[0].id)) };
 }
 
-test("patrol follows the naval preset, uses the registered F16 GLB and fully populated local telemetry", () => {
+test("patrol follows the naval preset, uses the registered E3 GLB and fully populated local telemetry", () => {
     const h = harness();
     const keys = vm.runInContext("FORMATION_KEYS", h.c);
     assert.equal(keys.indexOf(key), keys.indexOf("hormuz") + 1);
     assert.equal(h.preset.members.length, 1);
-    const model = fs.readFileSync(new URL("../../../dev/assets/images/models/air/Fighter-F16.glb", import.meta.url));
+    const model = fs.readFileSync(new URL("../../../dev/assets/images/models/air/AWACS-E3.glb", import.meta.url));
     assert.equal(model.subarray(0, 4).toString(), "glTF");
     const gltf = JSON.parse(model.subarray(20, 20 + model.readUInt32LE(12)).toString());
     assert.ok(gltf.meshes.length > 0);
     h.c.activateFormation(key);
     const track = h.track(), telemetry = getAircraftTelemetry(track);
-    assert.equal(track.model_code, "Fighter-F16");
-    assert.equal(track.type_code, "F16");
+    assert.equal(track.model_code, "AWACS-E3");
+    assert.equal(track.type_code, "E3CF");
     assert.match(track.icao24, /^[A-F0-9]{6}$/);
     assert.notEqual(track.simulation_id, track.icao24);
     assert.match(track.simulation_id, /^dev-formation-/);

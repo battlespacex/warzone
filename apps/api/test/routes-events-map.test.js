@@ -14,7 +14,7 @@ import {
 function createSupabaseResult(data = [], error = null) {
     const calls = [];
     const query = {};
-    ["select", "gte", "lte", "gt", "not", "or", "order", "limit", "eq", "maybeSingle"].forEach((method) => {
+    ["select", "gte", "lte", "gt", "not", "or", "order", "limit", "range", "eq", "maybeSingle"].forEach((method) => {
         query[method] = (...args) => {
             calls.push([method, ...args]);
             return query;
@@ -70,14 +70,16 @@ function mapRequest(overrides = {}) {
     };
 }
 
-test("map request uses a 48-hour, 800-row region-scoped query and no select star", () => {
+test("map request uses a 72-hour, paginated region-scoped query and no select star", () => {
     const options = parseMapEventsRequest(mapRequest().query, Date.parse("2026-09-14T12:00:00.000Z"));
     assert.equal(options.windowHours, MAP_EVENTS_WINDOW_HOURS);
     assert.equal(options.limit, MAP_EVENTS_LIMIT);
-    assert.equal(options.cutoffIso, "2026-09-12T12:00:00.000Z");
+    assert.equal(options.cutoffIso, "2026-09-11T12:00:00.000Z");
+    assert.equal(options.offset, 0);
 
     const recorder = createSupabaseResult();
     buildMapEventsQuery(recorder.supabase, options);
+    assert.deepEqual(recorder.calls.find(([name]) => name === "range"), ["range", 0, 800]);
     assert.deepEqual(recorder.calls.find(([name]) => name === "select"), ["select", MAP_EVENTS_SELECT_COLUMNS]);
     assert.ok(!MAP_EVENTS_SELECT_COLUMNS.includes("*"));
     assert.ok(recorder.calls.some((call) => call[0] === "gte" && call[1] === "lat" && call[2] === 12));
@@ -102,6 +104,7 @@ test("map endpoint returns lightweight fields plus available satellite context",
         lat: 25,
         lon: 55,
         metadata: {
+            intelligence_pipeline: "conflict",
             normalization: { location_precision: "EXACT", location_method: "incident_coordinates" },
             source_provenance: [{ raw: true }],
         },
@@ -132,6 +135,7 @@ test("map endpoint returns lightweight fields plus available satellite context",
     const event = res.body.events[0];
     assert.equal(event.id, "evt-map");
     assert.equal(event.map_eligible, true);
+    assert.equal(event.metadata.intelligence_pipeline, "conflict");
     assert.equal("source_url" in event, false);
     assert.equal("media" in event, false);
     assert.equal(satelliteCalls, 1);
@@ -203,4 +207,22 @@ test("invalid or missing region bounds are rejected", async () => {
     const res = createResponseRecorder();
     await handler(mapRequest({ max_lon: "not-a-number" }), res);
     assert.equal(res.statusCode, 400);
+});
+
+test("map endpoint exposes the next page instead of silently truncating the region", async () => {
+    const recorder = createSupabaseResult(Array.from({ length: 51 }, (_, i) => ({
+        id: `event-${i}`, category: "strike", title: "Explosion in Kyiv", lat: 50.45, lon: 30.52,
+        occurred_at: new Date().toISOString(),
+    })));
+    const handler = createMapEventsHandler({
+        getSupabaseClient: () => recorder.supabase,
+        attachSatellite: async (_db, rows) => rows,
+        logger: { info() {} },
+    });
+    const response = createResponseRecorder();
+    await handler(mapRequest({ limit: "50", offset: "50" }), response);
+    assert.equal(response.body.events.length, 50);
+    assert.equal(response.body.meta.has_more, true);
+    assert.equal(response.body.meta.next_offset, 100);
+    assert.deepEqual(recorder.calls.find(([name]) => name === "range"), ["range", 50, 100]);
 });

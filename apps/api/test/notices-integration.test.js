@@ -1,3 +1,4 @@
+import {mkdtempSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
@@ -90,7 +91,7 @@ test('cross-provider identity preserves source records, newer data and independe
     assert.equal(deduplicateNotices([{...a,issuer:'Office A'},{...b,issuer:'Office B'}]).length,2);
     assert.equal(deduplicateNotices([a,{...b,sourceId:'A0002/26',isCancellation:true,replacesNoticeId:'A0001/26'}])[0].superseded,true);
 });
-const enabled=prefix=>({[prefix+'_ENABLED']:'true',[prefix+'_USAGE_APPROVED']:'true',[prefix+'_API_KEY']:'fixture-private-key',[prefix+'_LOCATIONS']:'OPKR'});
+const enabled=prefix=>({PROVIDER_QUOTA_DIRECTORY:mkdtempSync(path.join(os.tmpdir(),'notice-integration-test-')),[prefix+'_ENABLED']:'true',[prefix+'_USAGE_APPROVED']:'true',[prefix+'_API_KEY']:'fixture-private-key',[prefix+'_LOCATIONS']:'OPKR'});
 test('Aviation Edge documented location/key request parses original ICAO text and caches',async()=>{
     let calls=0;const raw='a0001/26 notamnq) opkr/qwmlw/iv/bo/w/000/100/2450n06630e010a) opkr b) 2611150000 c) 2611162359e) military exercise';
     const provider=createCommercialNoticeProviders(enabled('AVIATION_EDGE'),{now,fetchImpl:async(url)=>{calls++;assert.equal(url.origin+url.pathname,'https://aviation-edge.com/v2/public/notams');assert.equal(url.searchParams.get('location'),'OPKR');assert.equal(url.searchParams.get('key'),'fixture-private-key');return new Response(JSON.stringify([{condition:raw,location:'opkr',number:'a0001/26'}]));}})[0];

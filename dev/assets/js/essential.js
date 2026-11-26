@@ -1,4 +1,5 @@
 import { isExcludedTrainerAircraftText } from "../../../apps/shared/aircraft-trainer-exclusions.js";
+import { isConflictIntelligenceEvent, isActiveConflictItem } from "../../../apps/shared/conflict-retention.js";
 import { createCountryStatusClassifier } from "../../../apps/shared/status-signal-policy.js";
 // File Path: /assets/js/essential.js
 import * as Cesium from "cesium";
@@ -3839,8 +3840,10 @@ function trimSortedEventList(events = [], maxItems = EVENT_CACHE_MAX_ITEMS) {
         seen.add(idKey);
         const occurredAtMs = Date.parse(event.occurred_at || "");
         if (Number.isFinite(occurredAtMs) && occurredAtMs < cutoff) continue;
+        const conflict = isConflictIntelligenceEvent(event);
+        if (conflict && !isActiveConflictItem(event)) continue;
+        if (!conflict && trimmed.length >= max) continue;
         trimmed.push(event);
-        if (trimmed.length >= max) break;
     }
     return trimmed;
 }
@@ -10219,10 +10222,26 @@ async function initializeWarzoneAppOnce() {
         clearTimeout(timeoutId);
     }
 }
+function expireConflictEvents(now = Date.now()) {
+    const keep = (event) => !isConflictIntelligenceEvent(event) || isActiveConflictItem(event, now);
+    if (![__allEventsCache, __eventsCache, __visibleEventsCache, __liveRecentEvents].some((rows) => rows.some((event) => !keep(event)))) return;
+    __allEventsCache = __allEventsCache.filter(keep);
+    __eventsCache = __eventsCache.filter(keep);
+    __visibleEventsCache = __visibleEventsCache.filter(keep);
+    __liveRecentEvents = __liveRecentEvents.filter(keep);
+    renderAll(__eventsCache, { replaceAllCache: false });
+    const viewer = window.__warzoneViewer;
+    if (Array.isArray(viewer?.__warzoneLastSourceEvents)) {
+        // Reconcile event markers/clusters only; leave trackers, overlays and camera state alone.
+        viewer.__warzone?.addEvents?.(viewer.__warzoneLastSourceEvents.filter(keep));
+    }
+    syncHotspotLayerEvents(applyHotspotFilters(__viewportScoped ? __visibleEventsCache : __eventsCache, { respectRegion: true }));
+}
 async function pollLatestEvents(options = {}) {
     const force = options?.force === true;
     if (shouldSuspendMapWork() && !force) return;
     if (isDocumentHidden() && !force) return;
+    expireConflictEvents();
     if (!force && shouldDeferBackgroundMapWork()) {
         if (!shouldRunFocusModeTask(__focusModeLastEventPollAt, FOCUS_MODE_EVENT_POLL_MS)) return;
         __focusModeLastEventPollAt = Date.now();

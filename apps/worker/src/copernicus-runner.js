@@ -421,16 +421,23 @@ async function cleanupExpiredSatelliteObservations({ supabase, logger = console,
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("event_satellite_observations")
-    .select("id, storage_key, status")
+    .select("id, event_id, storage_key, status")
     .lt("expires_at", nowIso)
-    .neq("status", "expired")
-    .limit(50);
+    .or("status.neq.expired,and(status.eq.expired,storage_key.not.is.null)")
+    .limit(200);
   if (error) throw error;
 
   let expired = 0;
   let deleted = 0;
   for (const row of data || []) {
     const storageKey = row.storage_key;
+    if (storageKey) {
+      const pinned = await supabase.rpc("stratops_satellite_preview_is_pinned", { p_event_id: row.event_id, p_storage_key: storageKey });
+      if (pinned.error || pinned.data !== false) {
+        logger.warn?.("[copernicus] preview retained: report dependency review required");
+        continue;
+      }
+    }
     await updateObservation(supabase, row.id, {
       status: "expired",
       error_code: null,
@@ -448,7 +455,10 @@ async function cleanupExpiredSatelliteObservations({ supabase, logger = console,
       .limit(1);
     if (!refs.error && (!refs.data || refs.data.length === 0)) {
       const deleteResult = await deleteSatellitePreviewFromS3(config, storageKey);
-      if (deleteResult.ok) deleted += 1;
+      if (deleteResult.ok) {
+        deleted += 1;
+        await updateObservation(supabase, row.id, { storage_key: null, image_url: null });
+      }
       else logger.warn?.(`[copernicus] cleanup delete failed key=${storageKey} error=${sanitizeForLog(deleteResult.error)}`);
     }
   }

@@ -4,9 +4,11 @@ import { fetchAllRssConflictItems } from "./conflict-rss-fetcher.js";
 import { fetchAllLiveHtmlConflictItems } from "./conflict-live-fetcher.js";
 import { fetchAllTelegramConflictItems } from "./conflict-telegram-fetcher.js";
 import { fetchReliefWebConflictItems } from "./conflict-reliefweb-fetcher.js";
-import { resolveEventLocation } from "./intelligence-normalizer.js";
+import { resolveEventLocation, normalizeConflictFeedItemForStorage } from "./intelligence-normalizer.js";
 import { aggregateEventQuality } from "./event-quality.js";
 import { resolveSourceProfile } from "../../shared/source-quality-policy.js";
+import { earliestConflictDate } from "../../shared/conflict-retention.js";
+import { readConflictBackfill, maintainConflictRetention } from "./conflict-retention.js";
 
 const DEDUPE_STOP_WORDS = new Set([
   "the", "and", "for", "with", "from", "that", "this", "after", "into", "over",
@@ -80,7 +82,7 @@ function safeTimestamp(value) {
 function getLocationBucket(item = {}) {
   let location = resolvedLocationCache.get(item);
   if (!location) {
-    location = resolveEventLocation(item);
+    location = resolveEventLocation(item, { conflictIntelligence: true });
     resolvedLocationCache.set(item, location);
   }
   const country = safeText(location.country || "");
@@ -171,6 +173,7 @@ function mergeDuplicateGroup(items = []) {
   const quality = aggregateEventQuality(ordered);
   const primary = {
     ...ordered[0],
+    published_at: earliestConflictDate(...ordered.map((item) => item.published_at)),
   };
   const supporting = ordered.slice(1).map((item) => ({
     source_id: item.source_id || null,
@@ -233,6 +236,8 @@ function summarizeSourceHealth(resultGroups = []) {
     source_name: result.source?.name || null,
     status: result.health?.status || (result.ok ? "healthy" : "failing"),
     reason: result.health?.reason || result.error || null,
+    retrieved_count: result.fetched_count || 0,
+    accepted_count: result.items?.length || 0,
     last_success: result.health?.last_success || null,
     retry_after: result.health?.retry_after || null,
   }));
@@ -335,7 +340,7 @@ async function runConflictFeedSync(options = {}) {
   try {
     logger.log("[conflict] conflict feed sync started");
 
-    const fetchResult = await runConflictFeedFetch(options);
+    const fetchResult = await (options.fetchFeed || runConflictFeedFetch)(options);
 
     logger.log(`[conflict] RSS source count: ${fetchResult.rss.source_count}`);
     logger.log(`[conflict] Live HTML source count: ${fetchResult.live_html.source_count}`);
@@ -346,10 +351,13 @@ async function runConflictFeedSync(options = {}) {
     logger.log(`[conflict] source health: ${JSON.stringify(fetchResult.source_health?.counts || {})}`);
 
     const { upsertConflictFeedItems } = await import("./conflict-supabase-writer.js");
-    const writeResult = await upsertConflictFeedItems(fetchResult.items);
+    const { supabase } = await import("./supabase.js");
+    const db = options.db || supabase;
+    const writeResult = await upsertConflictFeedItems(fetchResult.items, { db });
     const insertedCount = writeResult.inserted_count || 0;
 
-    logger.log(`[conflict] inserted/updated count: ${insertedCount}`);
+    logger.log(`[conflict] raw inserted=${insertedCount} updated=${writeResult.updated_count || 0} duplicates=${writeResult.duplicate_count || 0} unchanged=${writeResult.unchanged_count || 0} freshness=${writeResult.freshness_count || 0}`);
+    logger.log(`[conflict] per-source diagnostics: ${JSON.stringify(fetchResult.source_health?.entries || [])}`);
 
     if (!writeResult.ok) {
       logger.error(`[conflict] Supabase write failed: ${writeResult.error || "unknown error"}`);
@@ -363,11 +371,24 @@ async function runConflictFeedSync(options = {}) {
 
     if (options.promoteEvents !== false) {
       const { promoteConflictFeedItemsToEvents } = await import("./conflict-event-promoter.js");
-      promotionResult = await promoteConflictFeedItemsToEvents(fetchResult.items, { logger });
+      const now = Date.now();
+      const backlog = await readConflictBackfill(db, { now });
+      const locationRepairs = backlog.filter((item) => item.lat == null || item.lon == null)
+        .map(normalizeConflictFeedItemForStorage)
+        .filter((item) => item.lat != null && item.lon != null);
+      if (locationRepairs.length) {
+        const repaired = await upsertConflictFeedItems(locationRepairs, { db, now });
+        logger.log(`[conflict] stored geographic enrichments=${repaired.updated_count || 0} ok=${repaired.ok}`);
+      }
+      promotionResult = await promoteConflictFeedItemsToEvents(backlog, { logger, db, now });
+      promotionResult.retained_report_count = backlog.length;
+      promotionResult.collected_report_count = fetchResult.fetched_item_count || 0;
 
       logger.log(`[conflict] promoted event count: ${promotionResult.promoted_count || 0}`);
       logger.log(`[conflict] operational candidate count: ${promotionResult.candidate_count || 0}`);
+      logger.log(`[conflict] promotion diagnostics: ${JSON.stringify(promotionResult)}`);
     }
+    const retention = await maintainConflictRetention(db, logger);
 
     logger.log(`[conflict] conflict feed sync finished in ${Date.now() - startedAt}ms`);
 
@@ -381,7 +402,8 @@ async function runConflictFeedSync(options = {}) {
       promoted_event_count: promotionResult.promoted_count || 0,
       fetch: fetchResult,
       write: writeResult,
-      promotion: promotionResult
+      promotion: promotionResult,
+      retention
     };
   } catch (error) {
     logger.error("[conflict] Conflict feed sync failed:", error?.stack || error?.message || error);
