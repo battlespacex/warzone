@@ -13,6 +13,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA stratops_maintenance FROM PUBLIC, anon, authe
 INSERT INTO stratops_maintenance.controls(name) VALUES
   ('conflict'), ('working_history'), ('source_orphans'), ('historical_escalations')
 ON CONFLICT DO NOTHING;
+UPDATE stratops_maintenance.controls SET enabled=false;
 
 CREATE OR REPLACE FUNCTION public.stratops_conflict_owned(e public.events)
 RETURNS boolean LANGUAGE sql IMMUTABLE STRICT SET search_path = '' AS $$
@@ -42,7 +43,8 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
  SELECT public.stratops_report_references(p_event_id, p_storage_key)
  OR EXISTS(SELECT 1 FROM public.operational_reports WHERE status='generating')
  OR EXISTS (SELECT 1 FROM public.event_satellite_observations o WHERE o.storage_key=p_storage_key
-   AND public.stratops_report_references(o.event_id,p_storage_key))
+   AND (public.stratops_report_references(o.event_id,p_storage_key)
+     OR public.stratops_report_references(o.id)))
 $$;
 
 CREATE OR REPLACE FUNCTION stratops_maintenance.prune_event_batch(p_conflict boolean, p_limit integer DEFAULT 100)

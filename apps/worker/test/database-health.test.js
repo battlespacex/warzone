@@ -81,3 +81,27 @@ test('country codes come from resolved incident geography, never publisher natio
  const normalized=normalizeConflictItemToEventPayload({title:'Drone strike in Kharkiv',summary:'Buildings damaged in Kharkiv.',published_at:new Date().toISOString(),source_country:'France'});
  assert.equal(normalized.event.country_code,'UA');
 });
+
+test('PostgreSQL 17 security checks cover MAINTAIN and effective column rights',()=>{
+ const read=(name)=>readFileSync(new URL('../../../docs/04-development/'+name,import.meta.url),'utf8');
+ const migration=read('supabase-db-security-migration.sql');
+ assert.match(migration,/server_version_num[\s\S]*>=170000/);
+ assert.match(migration,/REVOKE MAINTAIN ON TABLE/);
+ assert.match(migration,/has_table_privilege\('anon',relation,'MAINTAIN'\)/);
+ assert.match(migration,/Inherited client column mutation privilege/);
+ const verification=read('supabase-db-security-verification.sql');
+ assert.match(verification,/has_any_column_privilege/);
+ assert.match(verification,/maintain_must_be_false/);
+});
+
+test('orphan SQL preserves direct report references and holds generating reports',()=>{
+ const read=(name)=>readFileSync(new URL('../../../docs/04-development/'+name,import.meta.url),'utf8');
+ const migration=read('supabase-db-sources-migration.sql');
+ assert.match(migration,/NOT public\.stratops_report_references\(s\.id\)/);
+ assert.match(migration,/stratops_report_references\(candidate\.id\) THEN CONTINUE/);
+ assert.match(migration,/report_generation_in_progress/);
+ const preflight=read('supabase-db-sources-preflight.sql');
+ assert.match(preflight,/LEFT JOIN refs link ON link\.id=s\.id/);
+ assert.match(preflight,/candidates_after_report_exclusions/);
+ assert.doesNotMatch(preflight,/SELECT s\.\*/);
+});

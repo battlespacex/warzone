@@ -1,5 +1,6 @@
 -- GROUP 2 MANUAL ONLY. No auth/subscription data or existing private-history read policies change.
 BEGIN;
+UPDATE stratops_maintenance.controls SET enabled=false;
 SET LOCAL lock_timeout='3s';
 CREATE TABLE IF NOT EXISTS stratops_maintenance.security_table_state (
  table_name text PRIMARY KEY, rls boolean NOT NULL, forced boolean NOT NULL
@@ -36,6 +37,11 @@ BEGIN
   END IF;
   IF protected THEN EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC,anon,authenticated',target);
   ELSE EXECUTE format('REVOKE INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER ON TABLE public.%I FROM PUBLIC,anon,authenticated',target); END IF;
+  -- PostgreSQL 17 added MAINTAIN (VACUUM/ANALYZE/REINDEX and related operations).
+  -- Guard by version so the same script also parses/runs on older supported servers.
+  IF current_setting('server_version_num')::integer>=170000 THEN
+   EXECUTE format('REVOKE MAINTAIN ON TABLE public.%I FROM PUBLIC,anon,authenticated',target);
+  END IF;
   FOR column_record IN SELECT attname FROM pg_attribute WHERE attrelid=relation AND attnum>0 AND NOT attisdropped LOOP
    IF protected THEN EXECUTE format('REVOKE ALL (%I) ON TABLE public.%I FROM PUBLIC,anon,authenticated',column_record.attname,target);
    ELSE EXECUTE format('REVOKE INSERT (%I),UPDATE (%I),REFERENCES (%I) ON TABLE public.%I FROM PUBLIC,anon,authenticated',column_record.attname,column_record.attname,column_record.attname,target); END IF;
@@ -57,6 +63,15 @@ BEGIN
   IF has_table_privilege('anon',relation,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
     OR has_table_privilege('authenticated',relation,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
    RAISE EXCEPTION 'Inherited client write privileges remain on %; review memberships instead of silently changing roles',target;
+  END IF;
+  IF current_setting('server_version_num')::integer>=170000 THEN
+   IF has_table_privilege('anon',relation,'MAINTAIN') OR has_table_privilege('authenticated',relation,'MAINTAIN') THEN
+    RAISE EXCEPTION 'Inherited client MAINTAIN privilege remains on %; review memberships',target;
+   END IF;
+  END IF;
+  IF has_any_column_privilege('anon',relation,'INSERT,UPDATE,REFERENCES')
+    OR has_any_column_privilege('authenticated',relation,'INSERT,UPDATE,REFERENCES') THEN
+   RAISE EXCEPTION 'Inherited client column mutation privilege remains on %; review memberships',target;
   END IF;
  END LOOP;
 END $$;

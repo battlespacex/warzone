@@ -1,5 +1,6 @@
 -- GROUP 4. Foundation prerequisite. No truncation, foreign keys or deduplication deletions.
 BEGIN;
+UPDATE stratops_maintenance.controls SET enabled=false;
 CREATE OR REPLACE FUNCTION public.stratops_link_event_sources(p_rows jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE row_data jsonb; event_ref uuid; raw_ref uuid; inserted integer:=0; duplicates integer:=0;
@@ -27,20 +28,25 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE removed integer:=0; candidate record;
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM stratops_maintenance.controls WHERE name='source_orphans'
-  AND enabled AND backup_reference IS NOT NULL AND reviewed_at IS NOT NULL) THEN
+  AND enabled AND NULLIF(backup_reference,'') IS NOT NULL AND reviewed_at IS NOT NULL) THEN
   RETURN jsonb_build_object('enabled',false,'reason','orphan_export_and_review_required');
+ END IF;
+ IF EXISTS(SELECT 1 FROM public.operational_reports WHERE status='generating') THEN
+  RETURN jsonb_build_object('enabled',false,'reason','report_generation_in_progress');
  END IF;
  FOR candidate IN
   SELECT s.id,s.event_id,s.raw_item_id FROM public.event_sources s WHERE event_id IS NOT NULL AND raw_item_id IS NOT NULL
    AND NOT EXISTS(SELECT 1 FROM public.events e WHERE e.id=s.event_id)
    AND NOT EXISTS(SELECT 1 FROM public.raw_items r WHERE r.id=s.raw_item_id)
    AND NOT public.stratops_report_references(s.event_id,s.raw_item_id::text)
+   AND NOT public.stratops_report_references(s.id)
   ORDER BY s.id LIMIT LEAST(GREATEST(p_limit,1),5000) FOR UPDATE SKIP LOCKED
  LOOP
   IF pg_try_advisory_xact_lock(hashtextextended(candidate.event_id::text||':'||candidate.raw_item_id::text,0))
    AND NOT EXISTS(SELECT 1 FROM public.events WHERE id=candidate.event_id)
    AND NOT EXISTS(SELECT 1 FROM public.raw_items WHERE id=candidate.raw_item_id)
    AND NOT public.stratops_report_references(candidate.event_id,candidate.raw_item_id::text) THEN
+   IF public.stratops_report_references(candidate.id) THEN CONTINUE; END IF;
     DELETE FROM public.event_sources WHERE id=candidate.id;
     removed:=removed+1;
   END IF;

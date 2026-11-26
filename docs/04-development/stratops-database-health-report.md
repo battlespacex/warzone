@@ -1,5 +1,7 @@
 # StratOps database health: implementation and manual rollout
 
+Production verification update: see [the consolidated production readiness checklist](stratops-production-readiness-checklist.md) for the live read-only Supabase results, PostgreSQL 17 corrections, exact execution order and remaining gates. That checklist supersedes the historical execution sequence and pending-evidence list below; the original implementation/audit record is retained.
+
 26 November 2026. Source of truth: the current repository and all 17 CSV exports in `StratOps-Supabase-Codex-Audit-Complete.zip`. The archive was read into the ignored `.generated/database-health/audit` directory; no ZIP website source replaced local work. No production SQL, destructive maintenance, deployment, commit, push, paid dependency, infrastructure purchase or database branch was performed.
 
 ## Evidence reviewed

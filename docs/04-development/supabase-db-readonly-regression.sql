@@ -1,0 +1,28 @@
+-- READ ONLY synthetic fixtures. No production rows, functions or permissions change.
+-- Tests the preflight's NULL, parent and report-reference exclusions on PostgreSQL.
+-- This is NOT execution of the migration or its PL/pgSQL concurrency paths.
+WITH live_events(id) AS (VALUES ('00000000-0000-4000-8000-000000000001'::uuid)),
+live_raw(id) AS (VALUES ('00000000-0000-4000-8000-000000000002'::uuid)),
+links(id,event_id,raw_item_id,expected) AS (VALUES
+ ('10000000-0000-4000-8000-000000000001'::uuid,'00000000-0000-4000-8000-000000000003'::uuid,'00000000-0000-4000-8000-000000000004'::uuid,true),
+ ('10000000-0000-4000-8000-000000000002',NULL,'00000000-0000-4000-8000-000000000004',false),
+ ('10000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000003',NULL,false),
+ ('10000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000004',false),
+ ('10000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000002',false),
+ ('10000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000004',false),
+ ('10000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000006',false),
+ ('10000000-0000-4000-8000-000000000008','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000004',false)
+), docs(doc) AS (VALUES
+ ('{"nested":{"event":"00000000-0000-4000-8000-000000000005","raw":"00000000-0000-4000-8000-000000000006"},"text":"Link 10000000-0000-4000-8000-000000000008 retained as evidence"}')),
+refs AS MATERIALIZED (
+ SELECT DISTINCT (regexp_matches(doc,
+ '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}','g'))[1]::uuid id FROM docs
+), outcomes AS (
+ SELECT s.expected,(s.event_id IS NOT NULL AND s.raw_item_id IS NOT NULL
+ AND NOT EXISTS(SELECT 1 FROM live_events e WHERE e.id=s.event_id)
+ AND NOT EXISTS(SELECT 1 FROM live_raw r WHERE r.id=s.raw_item_id)
+ AND NOT EXISTS(SELECT 1 FROM refs r WHERE r.id IN (s.event_id,s.raw_item_id,s.id))) actual
+ FROM links s
+)
+SELECT count(*) cases,bool_and(actual=expected) all_passed,
+ count(*) FILTER(WHERE actual) eligible_must_equal_one FROM outcomes;

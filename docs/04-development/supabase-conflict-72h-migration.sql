@@ -1,6 +1,7 @@
 -- MANUAL ONLY. Run preflight first and review existing triggers/jobs.
 -- This transaction installs protections; it does not run cleanup or delete records.
 BEGIN;
+UPDATE stratops_maintenance.controls SET enabled=false;
 
 -- Establish legacy ownership only through an exact URL AND the old promoter's source-ID metadata.
 -- No blanket news/OSINT scope; explicit markers on new events use the same policy.
@@ -56,6 +57,9 @@ DECLARE
  retained_events bigint; retained_reports bigint; regions jsonb;
 BEGIN
  event_result := stratops_maintenance.prune_event_batch(true,100);
+ IF to_regprocedure('public.stratops_prune_retired_observations(integer)') IS NOT NULL THEN
+  PERFORM public.stratops_prune_retired_observations(100);
+ END IF;
  IF COALESCE((event_result->>'enabled')::boolean,false) THEN
   WITH wire_head AS (
    SELECT id FROM public.conflict_feed_items WHERE published_at IS NOT NULL

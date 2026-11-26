@@ -2,6 +2,7 @@
 -- First run preflight. Execute any resulting CREATE INDEX CONCURRENTLY statement ALONE,
 -- outside a transaction, only after reviewing its plan and existing equivalent indexes.
 BEGIN;
+UPDATE stratops_maintenance.controls SET enabled=false;
 CREATE OR REPLACE FUNCTION public.stratops_increment_copernicus_usage(p_date date,p_deltas jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE field text; amount numeric; updated_row public.copernicus_usage_daily%ROWTYPE;

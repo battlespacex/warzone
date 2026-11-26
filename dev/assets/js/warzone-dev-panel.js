@@ -987,6 +987,15 @@ function fireTestEvent(key) {
         occurred_at: new Date().toISOString(),
     };
     const globe = window.__warzoneViewer?.__warzone;
+    if (isStrikeLikeEvent(event)) {
+        event.title = `FICTIONAL DEV SIMULATION — ${event.title}`;
+        event.summary = `Fictional client-side demonstration. ${event.summary || ""}`;
+        event.source_name = "DEV PANEL SIMULATION";
+        event.metadata = { ...event.metadata, simulation: "developer-panel", fictional: true };
+        // addEvent only renders the marker. Keep the animation local rather than
+        // sending fictional geometry through the intelligence/retention pipeline.
+        globe?.animateMissileTrack?.(event);
+    }
     if (!key.startsWith("aircraft_") && !key.startsWith("ship_")) {
         globe?.addEvent?.({ ...event, source_name: "DEV PANEL SIMULATION" });
         __devPanelEventKeys.add(event.id);

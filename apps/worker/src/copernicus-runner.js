@@ -457,7 +457,11 @@ async function cleanupExpiredSatelliteObservations({ supabase, logger = console,
       const deleteResult = await deleteSatellitePreviewFromS3(config, storageKey);
       if (deleteResult.ok) {
         deleted += 1;
-        await updateObservation(supabase, row.id, { storage_key: null, image_url: null });
+        // Keep the key retryable unless the database atomically records proof of
+        // successful object retirement and clears the image references.
+        if (!await recordPreviewRetirement(supabase, row.id, storageKey)) {
+          logger.warn?.('[copernicus] Preview retirement receipt unavailable; storage reference retained for retry.');
+        }
       }
       else logger.warn?.(`[copernicus] cleanup delete failed key=${storageKey} error=${sanitizeForLog(deleteResult.error)}`);
     }
@@ -467,6 +471,15 @@ async function cleanupExpiredSatelliteObservations({ supabase, logger = console,
     logger.log?.(`[copernicus] cleanup completed expired=${expired} deleted=${deleted}`);
   }
   return { ok: true, expired_count: expired, deleted_count: deleted };
+}
+
+export async function recordPreviewRetirement(supabase, observationId, storageKey) {
+  try {
+    const result = await supabase.rpc('stratops_record_preview_retirement', {
+      p_observation_id: observationId, p_storage_key: storageKey,
+    });
+    return !result.error && result.data === true;
+  } catch { return false; }
 }
 
 export {

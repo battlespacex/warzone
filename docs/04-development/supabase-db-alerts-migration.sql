@@ -1,5 +1,6 @@
 -- GROUP 3. Foundation prerequisite. Installs bounded correction; does not run it.
 BEGIN;
+UPDATE stratops_maintenance.controls SET enabled=false;
 CREATE TABLE IF NOT EXISTS stratops_maintenance.alert_backup (
  id uuid PRIMARY KEY, row_data jsonb NOT NULL, captured_at timestamptz NOT NULL DEFAULT now(), applied_updated_at timestamptz
 );
