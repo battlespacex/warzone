@@ -1138,7 +1138,6 @@ padding: 15px;
   display: block;
   color: var(--heading);
   font-weight: 600;
-  letter-spacing: 2px;
   margin-bottom: 10px;
 }
 
@@ -2432,21 +2431,6 @@ padding: 15px;
   object-position: 54% 52%;
 }
 
-[data-slot="CAP-SEA"] img,
-[data-slot="ADV-SEA-3D"] img {
-  object-position: 46% 57%;
-}
-
-[data-slot="CAP-AIR"] img,
-[data-slot="MTH-OBS"] img {
-  object-position: 46% 56%;
-}
-
-[data-slot="CAP-ORBIT"] img,
-[data-slot="ADV-ORBIT-3D"] img {
-  object-position: 45% 53%;
-}
-
 .intent-message {
   padding: 13px 16px;
   border-left: 3px solid var(--accent);
@@ -2716,4 +2700,141 @@ padding: 15px;
   .chapter-details summary::after {
     transition: none;
   }
+}
+/* About and Partners: use the same restrained clipped panels and shell widths as Home.
+   All rules below are scoped to these two pages only. */
+.page-about .about-story-grid,
+.page-partners .partners-process-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 4.5vw, 88px);
+  align-items: center;
+}
+.page-about .about-story-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(14px, 1.5vw, 23px);
+}
+.page-about .about-story-copy .sec-tag { margin-bottom: 0; }
+.page-about .about-story-copy h2 { margin: 0; }
+.page-about .about-story-copy p:not(.sec-tag) {
+  max-width: 64ch;
+  margin: 0;
+  font-size: var(--fs-p);
+  line-height: 1.55;
+  color: var(--muted);
+}
+.page-about .about-story-copy .about-lead { color: var(--text); font-size: var(--fs-l); }
+.page-about .about-brand-links,
+.page-about .about-engineering-actions,
+.page-partners .partners-process-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 23px;
+  align-items: center;
+  margin-top: clamp(8px, 1vw, 18px);
+}
+.page-about .about-brand-links .parent-logo img { display: block; width: auto; height: 36px; }
+.page-about .about-story-figure,
+.page-about .about-engineering-figure { margin: 0; min-width: 0; }
+.page-about .about-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(12px, 1.5vw, 26px);
+}
+.page-about .about-focus-card,
+.page-partners .partner-card {
+  background: var(--panel);
+  border: 2px solid var(--border-color);
+}
+.page-about .about-focus-card {
+  min-width: 0;
+  padding: clamp(23px, 2.6vw, 45px);
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+.page-about .about-card-index { color: var(--accent); font-size: var(--fs-small); font-weight: 700; letter-spacing: 1px; }
+.page-about .about-focus-card h3,
+.page-partners .partners-process-step h3 {
+  color: var(--heading);
+  font: 600 var(--fs-h4)/1.08 var(--heading-font);
+  text-transform: uppercase;
+  margin: 0;
+}
+.page-about .about-focus-card p,
+.page-partners .partners-process-step p {
+  color: var(--muted);
+  font-size: var(--fs-p);
+  line-height: 1.5;
+  margin: 0;
+}
+.page-about .about-engineering-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .88fr);
+  align-items: center;
+  gap: clamp(20px, 3vw, 64px);
+  background: var(--panel);
+  border: 2px solid var(--border-color);
+  padding: clamp(22px, 4vw, 64px);
+}
+.page-about .about-engineering-copy h2 { margin: 12px 0 20px; }
+.page-about .about-engineering-copy>p:not(.sec-tag) { font-size: var(--fs-p); line-height: 1.55; color: var(--text); max-width: 62ch; }
+.page-about .about-engineering-actions .text-link,
+.page-partners .partners-process-actions .text-link { color: var(--accent); }
+.page-partners .partners-opportunities .partner-grid { margin-top: 0; }
+.page-partners .partner-card { min-height: 340px; gap: 14px; }
+.page-partners .partner-card>.font-icon { font-size: clamp(36px, 3.2vw, 58px); }
+.page-partners .partner-card h3 { margin: 0; }
+.page-partners .partner-card .partner-card-link {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.page-partners .partner-card .partner-card-link:hover,
+.page-partners .partner-card .partner-card-link:focus-visible { color: var(--heading); }
+.page-partners .partners-process-copy .display-heading { margin: 11px 0 22px; }
+.page-partners .partners-process-copy .feature-lead { max-width: 55ch; }
+.page-partners .partners-process-steps {
+  background: var(--panel);
+  border: 2px solid var(--border-color);
+  padding: clamp(22px, 2.6vw, 45px);
+  clip-path: var(--clippath-1);
+}
+.page-partners .partners-process-step {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.page-partners .partners-process-step:first-child { padding-top: 0; }
+.page-partners .partners-process-step:last-child { padding-bottom: 0; border-bottom: 0; }
+.page-partners .partners-process-step>span { font: 600 var(--fs-h4)/1 var(--heading-font); color: var(--accent); }
+.page-partners .partners-process-step h3 { font-size: clamp(18px, 1.55vw, 26px); margin-bottom: 8px; }
+.page-partners .partners-closing .photo-content { display: flex; flex-direction: column; align-items: flex-start; gap: 21px; }
+.page-partners .partners-closing .display-heading { margin: 0; }
+.page-partners .partners-closing .sec-tag,
+.page-partners .partners-closing .feature-lead { margin: 0; }
+@media (max-width: 980px) {
+  .page-about .about-story-grid,
+  .page-about .about-engineering-panel,
+  .page-partners .partners-process-grid { grid-template-columns: minmax(0,1fr); }
+  .page-about .about-story-figure { order: 2; }
+  .page-about .about-focus-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .page-about .about-focus-grid>:last-child { grid-column: 1/-1; }
+}
+@media (max-width: 680px) {
+  .page-about .about-focus-grid,
+  .page-partners .partners-opportunities .partner-grid { grid-template-columns: minmax(0,1fr); }
+  .page-about .about-focus-grid>:last-child { grid-column: auto; }
+  .page-partners .partners-process-step { grid-template-columns: 40px minmax(0,1fr); gap: 13px; }
+  .page-partners .partner-card { min-height: 0; }
 }

@@ -7083,6 +7083,10 @@ body:not(.is-authenticated):not(.is-public-access) [data-dock-proxy="naval"] .st
     padding: 1.5rem;
 }
 
+.wz-widget-body .warning-message {
+    margin: 1rem 0;
+}
+
 .wz-widget-body ul {
     list-style: none;
     display: flex;

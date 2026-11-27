@@ -1056,7 +1056,7 @@ svg:not(.icon-library) {
   z-index: -3;
   background: url("/assets/stratops-og-preview.jpg") center 54% / cover no-repeat;
   transform: translate3d(0, var(--parallax-y, 0px), 0) scale(1.04);
-  filter: saturate(.4) brightness(.55);
+  /* filter: saturate(.4) brightness(.55); */
   opacity: 1;
 }
 

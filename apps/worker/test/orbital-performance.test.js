@@ -58,6 +58,7 @@ function harness(code = source) {
     gstime, eciToGeodetic, resolveSatelliteModelProfile, Date, Math, EARTH_RADIUS_M: 6371008.8,
     getSatelliteModelHeadingDeg: () => { counts.cssReads++; return angles.heading; }, getSatelliteModelPitchDeg: () => { counts.cssReads++; return angles.pitch; },
     getSatelliteModelRollDeg: () => { counts.cssReads++; return angles.roll; }, getSatelliteModelScale: value => value, getCssNumber: (_key, value) => value,
+    getOperationalSatelliteModelStyle: () => { counts.cssReads++; return { ...angles, scale:170000,minimumPixelSize:18,maximumScale:260000 }; },
     formatUpper: value => String(value || "").toUpperCase(),
     clamp: (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value)),
     colorFromCss: () => RealCesium.Color.WHITE, window: {}, document: { hidden: false },
@@ -75,7 +76,7 @@ function harness(code = source) {
   });
   const scratchStart = code.indexOf("const satelliteOrientationScratch =");
   if (scratchStart >= 0) vm.runInContext(code.slice(scratchStart, code.indexOf("\n};", scratchStart) + 3), context);
-  for (const name of ["getOperationalSatelliteAngles", "orbitalMetrics", "orbitalInputBusy", "orbitalRenderTick", "bindOrbitalPerformance", "cleanText", "optionKey", "confidenceRank", "getMinimumConfidenceRank", "getPriorityScore", "matchesFilters", "chooseVisibleRecords",
+  for (const name of ["getOperationalSatelliteAngles", "operationalModelGraphics", "orbitalMetrics", "orbitalInputBusy", "orbitalRenderTick", "bindOrbitalPerformance", "cleanText", "optionKey", "confidenceRank", "getMinimumConfidenceRank", "getPriorityScore", "matchesFilters", "chooseVisibleRecords",
     "createSatelliteModelOrientation", "createSatelliteModelOrientationProperty", "getSatrec", "propagateRecord",
     "createSampledPosition", "createPolylinePositions", "createFootprintCirclePositions", "makePointEntity", "removeEntity",
     "removeMissingEntities", "updateDefaultEntities", "addFocusEntity", "clearFocusEntities", "addOrbitContext",
@@ -290,7 +291,8 @@ test("operational orientation CSS cache expires and explicit invalidation preser
   if(!source.includes('function getOperationalSatelliteAngles(')) return;
   let at=0,heading=1,reads=0;const state={};
   const c=vm.createContext({state,performance:{now:()=>at},getSatelliteModelHeadingDeg:()=>{reads++;return heading;},
-    getSatelliteModelPitchDeg:()=>-150,getSatelliteModelRollDeg:()=>-15});
+    getSatelliteModelPitchDeg:()=>-150,getSatelliteModelRollDeg:()=>-15,
+    getOperationalSatelliteModelStyle:()=>{reads++;return {heading,pitch:-150,roll:-15};}});
   const start=source.indexOf('function getOperationalSatelliteAngles('),node=parseExpressionAt(source,start,{ecmaVersion:'latest'});
   vm.runInContext(source.slice(start,node.end),c);
   assert.equal(c.getOperationalSatelliteAngles().heading,1);

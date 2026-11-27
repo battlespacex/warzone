@@ -1,6 +1,8 @@
 const SAT_MODEL_BASE = "/assets/images/models/space/";
 
 const SATELLITE_MODEL_PROFILES = Object.freeze({
+    "iss": Object.freeze({ key: "iss", uri: `${SAT_MODEL_BASE}Sat-ISS.glb`, countryCodes: [], countryNames: [], nameTokens: [] }),
+    "css": Object.freeze({ key: "css", uri: `${SAT_MODEL_BASE}Sat-CSS.glb`, countryCodes: [], countryNames: [], nameTokens: [] }),
     "us-wgs": Object.freeze({
         key: "us-wgs",
         uri: `${SAT_MODEL_BASE}Sat-US-WGS.glb`,
@@ -126,6 +128,14 @@ function getStartupSatelliteModelProfile(indexOrKey = 0) {
 }
 
 function resolveExactSatelliteModelKey(record = {}) {
+    const norad = String(record.noradId ?? record.norad_id ?? record.NORAD_CAT_ID ?? "").trim();
+    if (norad === "25544") return "iss";
+    if (norad === "48274") return "css";
+    if (!norad) {
+        const name = String(record.name || record.objectName || record.satelliteName || "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+        if (["ISS", "ISS ZARYA", "INTERNATIONAL SPACE STATION", "ZARYA"].includes(name)) return "iss";
+        if (["CSS", "CSS TIANHE", "TIANHE", "TIANGONG", "CHINESE SPACE STATION"].includes(name)) return "css";
+    }
     const nameText = normalizeSatelliteText([
         record.name,
         record.objectName,
@@ -171,3 +181,39 @@ export {
     resolveSatelliteModelProfile,
     stableIndex,
 };
+
+const operationalStyleCache = new Map();
+export function invalidateOperationalSatelliteStyles() { operationalStyleCache.clear(); }
+export function getOperationalSatelliteModelStyle(record = {}, focused = false) {
+    const key = resolveSatelliteModelProfile(record).key;
+    const cacheKey = `${key}:${focused}`;
+    if (operationalStyleCache.has(cacheKey)) return operationalStyleCache.get(cacheKey);
+    const styles = getComputedStyle(document.documentElement);
+    const read = (name, fallback, units = "") => {
+        const prefixes = ["iss", "css"].includes(key) ? [`--warzone-live-satellite-${key}-model-`, "--warzone-live-satellite-model-"] : ["--warzone-live-satellite-model-"];
+        for (const prefix of prefixes) {
+            const text = styles.getPropertyValue(prefix + name).trim();
+            if (new RegExp(`^[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:${units || '(?!)'})?$`).test(text)) {
+                const n = parseFloat(text); if (Number.isFinite(n)) return n;
+            }
+        }
+        return fallback;
+    };
+    const min = Math.max(0, read("scale-min", 0));
+    const max = Math.max(min, read("scale-max", 260000));
+    const legacy = (name, fallback) => {
+        const text = styles.getPropertyValue(name).trim();
+        return text && Number.isFinite(Number(text)) ? Number(text) : fallback;
+    };
+    const legacyScale = legacy("--warzone-satellite-model-scale", 170000);
+    const style = {
+        scale: Math.max(min, Math.min(max, read(focused ? "focused-size" : "scale", legacyScale))),
+        minimumPixelSize: Math.max(0, read(focused ? "focused-min-pixel-size" : "min-pixel-size", 18, "px")),
+        maximumScale: max,
+        heading: read("heading", legacy("--warzone-satellite-model-rotate-z-deg", legacy("--warzone-satellite-model-heading-deg", 0)), "deg"),
+        pitch: read("pitch", legacy("--warzone-satellite-model-rotate-y-deg", -150), "deg"),
+        roll: read("roll", legacy("--warzone-satellite-model-rotate-x-deg", -15), "deg"),
+    };
+    operationalStyleCache.set(cacheKey, style);
+    return style;
+}

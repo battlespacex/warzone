@@ -18,7 +18,7 @@ export const NOTICE_TEMPLATES = Object.freeze({
 <button type="button" class="static-icon" aria-label="Collapse notice widget" aria-expanded="true" data-action="collapse" data-expand-label="Expand notice widget" data-collapse-label="Collapse notice widget">
     <span class="stratops-ico-top-1" aria-hidden="true"></span>
 </button>`,
-    state: `<p data-field="message"></p>`,
+    state: `<p class="warning-message" data-field="message"></p>`,
     preview: `
 <section>
     <ul class="wz-widget-data-list" data-slot="rows">

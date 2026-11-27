@@ -1,175 +1,25 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#080b0e">
-  <meta name="robots" content="index,follow,max-image-preview:large">
-  <title>Why StratOps | Faster Intelligence Briefings in 3D</title>
-  <meta name="description"
-    content="Save research time with 48-hour intelligence reports, NOTAM and battlespace captures, immersive 3D military assets and multi-domain context.">
-  <link rel="canonical" href="<%= domains.publicOrigin %>/advantage/">
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="StratOps by BattlespaceX">
-  <meta property="og:title" content="Why StratOps | Faster Intelligence Briefings in 3D">
-  <meta property="og:description"
-    content="Save research time with 48-hour intelligence reports, NOTAM and battlespace captures, immersive 3D military assets and multi-domain context.">
-  <meta property="og:url" content="<%= domains.publicOrigin %>/advantage/">
-  <meta property="og:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Why StratOps | Faster Intelligence Briefings in 3D">
-  <meta name="twitter:description"
-    content="Save research time with 48-hour intelligence reports, NOTAM and battlespace captures, immersive 3D military assets and multi-domain context.">
-  <meta name="twitter:image" content="<%= domains.publicOrigin %>/assets/stratops-og-preview.jpg">
-  <script
-    type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"Why StratOps","url":"https://stratops.space/advantage/","isPartOf":{"@type":"WebSite","name":"StratOps","url":"https://stratops.space/"},"publisher":{"@type":"Organization","name":"BattlespaceX","url":"https://battlespacex.com/"}}</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,follow">
+  <title>StratOps Capabilities | Page Moved</title>
+  <link rel="canonical" href="https://stratops.space/capabilities/">
+  <noscript><meta http-equiv="refresh" content="0;url=/capabilities/"></noscript>
+  <script>
+    (function () {
+      var anchors = {
+        '#reports': '/capabilities/#share',
+        '#capture': '/capabilities/#share',
+        '#visualization': '/capabilities/#air',
+        '#correlation': '/capabilities/#combine'
+      };
+      window.location.replace(anchors[window.location.hash] || '/capabilities/');
+    })();
+  </script>
 </head>
-
-<body class="stratops-public stratops-subpage page-advantage">
-  <a class="skip-link" href="#main">Skip to content</a>
-  <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
-  <%= partials("icons") %>
-    <%= partials("header") %>
-      <main id="main" tabindex="-1">
-        <section class="page-banner banner--compact feature-banner advantage-hero" aria-labelledby="page-title">
-          <div class="banner-media photo-backdrop" aria-hidden="true"></div>
-          <div class="banner-shade" aria-hidden="true"></div>
-          <div class="shell banner-inner">
-            <div class="banner-copy" data-reveal>
-              <p class="eyebrow">THE STRATOPS ADVANTAGE / ASSESS · VISUALIZE · BRIEF</p>
-              <h1 id="page-title" class="display-heading">LESS TIME FINDING.<br><span>MORE TIME DECIDING.</span></h1>
-              <p class="banner-lead">Bring a theater into focus, understand recent activity and turn operational context
-                into a briefing or shareable image.</p>
-              <div class="banner-actions"><a class="btn btn-primary" href="<%= domains.portalOrigin %>/"><span>Enter
-                    StratOps</span></a><a class="btn btn-ghost" href="#reports"><span>Explore the workflow</span></a>
-              </div>
-            </div>
-          </div>
-        </section>
-        <nav class="domain-index section-index" aria-label="Why StratOps sections">
-          <div class="shell"><a href="#reports"><b>01</b>Reports</a><a href="#capture"><b>02</b>Take Shot</a><a
-              href="#visualization"><b>03</b>3D assets</a><a href="#correlation"><b>04</b>Connected intelligence</a>
-          </div>
-        </nav>
-        <section class="section shell split" id="reports" aria-labelledby="reports-title">
-          <div class="split-copy" data-reveal>
-            <div>
-              <div>
-                <p class="sec-tag">01 / AUTOMATED INTELLIGENCE REPORTS</p>
-                <h2 class="display-heading" id="reports-title">THE LAST 48 HOURS.<br><span>READY TO REVIEW.</span></h2>
-              </div>
-            </div>
-            <p class="feature-lead">Review published operational briefings without starting every research session from
-              an empty page.</p>
-            <ul class="feature-points">
-              <li>Review available 48-hour activity summaries.</li>
-              <li>Browse dated reports in the PDF viewer.</li>
-              <li>Download published briefings for follow-up analysis.</li>
-            </ul>
-            <a class="text-link" href="/capabilities/#share">Explore operational reporting</a>
-            <p class="fineprint">Report availability and coverage depend on published snapshots and source freshness.
-            </p>
-          </div>
-          <figure class="fig" data-reveal>
-            <div class="img-slot real-shot" data-slot="ADV-REPORT"><img
-                src="/assets/images/web/stratops-report-summary.webp"
-                alt="Example of a StratOps operational intelligence report executive summary displayed in its PDF viewer"
-                loading="lazy" decoding="async" width="1600" height="900"><span class="shot-caption"
-                aria-hidden="true">EXAMPLE / REPORT SUMMARY</span></div>
-            <figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> STRATOPS / VISUAL
-              REFERENCE <span>ADV-REPORT</span></figcaption>
-          </figure>
-        </section>
-        <section class="section subpage-band" id="capture" aria-labelledby="capture-title">
-          <div class="shell split split-reverse">
-            <figure class="fig" data-reveal>
-              <div class="img-slot is-placeholder" data-slot="ADV-CAPTURE" role="img"
-                aria-label="Suggested image: A real NOTAM restriction polygon with Take Shot controls and the saved tactical image.">
-                <span class="slot-label"><b>IMAGE / ADV-CAPTURE</b><i>1600×900 · 16:9</i><em>A real NOTAM restriction
-                    polygon with Take Shot controls and the saved tactical image.</em></span>
-              </div>
-              <figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> STRATOPS / VISUAL
-                REFERENCE <span>ADV-CAPTURE</span></figcaption>
-            </figure>
-            <div class="split-copy" data-reveal>
-              <div>
-                <p class="sec-tag">02 / SAVE THE OPERATIONAL VIEW</p>
-                <h2 class="display-heading" id="capture-title">CAPTURE THE AREA.<br><span>SHARE THE CONTEXT.</span></h2>
-              </div>
-              <p class="feature-lead">Save a mapped NOTAM area or operational view for a briefing or follow-up analysis.
-              </p>
-              <ul class="feature-points">
-                <li>Capture mapped NOTAM boundaries and visible notice context.</li>
-                <li>Save operational snapshots with enabled layers.</li>
-                <li>Use presentation-ready framing where supported.</li>
-              </ul>
-              <a class="text-link" href="/capabilities/#share">Explore Take Shot</a>
-            </div>
-          </div>
-        </section>
-        <section class="section shell assets-block" id="visualization" aria-labelledby="visualization-title">
-          <div class="feature-heading" data-reveal>
-            <div>
-              <p class="sec-tag">03 / PURPOSE-BUILT MILITARY 3D</p>
-              <h2 class="display-heading" id="visualization-title">NOT JUST MARKERS.<br><span>MODELED ASSETS.</span>
-              </h2>
-            </div>
-            <p class="feature-lead">Explore supported 3D aircraft, naval and orbital assets, with observed data and
-              predicted geometry clearly distinguished.</p>
-          </div>
-          <div class="media-grid">
-            <figure class="fig" data-reveal>
-              <div class="img-slot r-4x3 real-shot" data-slot="ADV-AIR-3D"><img
-                  src="/assets/images/web/stratops-military-aircraft.webp"
-                  alt="StratOps military aircraft model rendered over terrain" loading="lazy" decoding="async"
-                  width="1600" height="900"><span class="shot-caption" aria-hidden="true">AIR / 3D ASSET</span></div>
-              <figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> MILITARY AVIATION / 3D
-                MODEL <span>ACTUAL VIEW</span></figcaption>
-            </figure>
-            <figure class="fig" data-reveal>
-              <div class="img-slot r-4x3 real-shot" data-slot="ADV-SEA-3D"><img
-                  src="/assets/images/web/stratops-naval-vessel.webp"
-                  alt="3D vessel representation with AIS source and verification details" loading="lazy"
-                  decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">SEA / 3D
-                  CONTEXT</span></div>
-              <figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> NAVAL CONTACT / SOURCE
-                AWARE <span>ACTUAL VIEW</span></figcaption>
-            </figure>
-            <figure class="fig" data-reveal>
-              <div class="img-slot r-4x3 real-shot" data-slot="ADV-ORBIT-3D"><img
-                  src="/assets/images/web/stratops-orbital-wide.webp"
-                  alt="3D satellite models with calculated orbit arc and ground geometry" loading="lazy"
-                  decoding="async" width="1600" height="900"><span class="shot-caption" aria-hidden="true">SPACE / 3D
-                  ASSETS</span></div>
-              <figcaption><span class="font-icon stratops-ico-focus-1" aria-hidden="true"></span> SATELLITE / PREDICTED
-                ORBIT <span>ACTUAL VIEW</span></figcaption>
-            </figure>
-          </div>
-          <p class="fineprint">Models visualize assets; their presence does not independently verify identity, position
-            or current operational status.</p>
-          <div class="model-cta"><span>See the actual StratOps models in your own demonstration.</span><a
-              class="btn btn-ghost" href="/contact/?intent=demo#contact-form-section"><span>Request 3D demo</span></a>
-          </div>
-        </section>
-        <section class="section photo-band" id="correlation" aria-labelledby="correlation-title">
-          <div class="shell photo-content" data-reveal>
-            <div>
-              <p class="sec-tag">04 / MULTI-DOMAIN CONTEXT</p>
-              <h2 class="display-heading" id="correlation-title">ONE THEATER.<br><span>CONNECTED EVIDENCE.</span></h2>
-            </div>
-            <p class="feature-lead">Compare activity across domains in one geographic workspace instead of switching
-              maps.</p>
-            <div class="inline-points"><span>REGIONAL FILTERS</span><span>AOI SCANNING</span><span>SOURCE-AWARE
-                LAYERS</span></div>
-            <a class="btn btn-primary" href="<%= domains.portalOrigin %>/"><span>Explore the battlespace</span></a>
-            <div class="image-suggestion">BACKGROUND IMAGE / ADV-CORRELATION · 2400×1200+ · Dark globe showing multiple
-              enabled layers, focal area right</div>
-          </div>
-        </section>
-      </main>
-      <%= partials("footer") %>
+<body>
+  <p>This content is now part of <a href="/capabilities/">StratOps Capabilities</a>.</p>
 </body>
-
 </html>

@@ -301,6 +301,7 @@ const LIVE_AIRCRAFT_ASSET_FILES = Object.freeze({
     "Bomber-B52": Object.freeze({ category: "bomber", model: "Bomber-B52.glb", icon: "Bomber-B52.png" }),
     "Bomber-SU34": Object.freeze({ category: "bomber", model: "Bomber-SU34.glb", icon: "Bomber-SU34.png" }),
     "Heli-412": Object.freeze({ category: "helicopter", model: "Heli-412.glb", icon: "Heli-412.png" }),
+    "Heli-NH90": Object.freeze({ category: "helicopter", model: "Heli-NH90.glb", icon: "Heli-412.png" }),
     "Heli-Apache": Object.freeze({ category: "helicopter", model: "Heli-Apache.glb", icon: "Heli-Apache.png" }),
     "Heli-Blackhawk": Object.freeze({ category: "helicopter", model: "Heli-Blackhawk.glb", icon: "Heli-Blackhawk.png" }),
     "Heli-CH53": Object.freeze({ category: "helicopter", model: "Heli-CH53.glb", icon: "Heli-CH53.png" }),
@@ -839,10 +840,12 @@ const LIVE_AIRCRAFT_ASSET_SUFFIX_OVERRIDE_RULES = Object.freeze([
     { assetKey: "ISR-RC135", patterns: [/\brc[\s-]?135[a-z0-9-]*\b/i, /\brivet\s+joint\b/i, /\bcobra\s+ball\b/i, /\bcombat\s+sent\b/i] },
     { assetKey: "ISR-Gulfstream", patterns: [/\bgulfstream\b/i, /\bg(?:280|550|650)\b/i, /\bbombardier\b/i, /\bchallenger\b/i, /\bglobal (?:6000|6500)\b/i, /\blearjet\b/i, /\blj[\s-]?(?:3[15]|4[05]|5[05]|6[05]|7[05])\b/i, /\bbeechcraft\b/i, /\bking air\b/i, ...LIVE_AIRCRAFT_FALCON_EXECUTIVE_PATTERNS, /\brc[\s-]?12\b/i, /\bmc[\s-]?12\b/i, /\bisr\b/i, /\belint\b/i, /\bsigint\b/i, /\bsurveillance\b/i] },
 ]);
-// 3D models must only be selected for the aircraft family represented by the
-// asset. Broader role/country mappings remain valid for 2D symbology, but must
-// not silently display a different aircraft in the focused 3D view.
+// Dedicated identities take priority over broad role/country symbology. The
+// explicit visual substitutions below do not change the aircraft's identity.
 const LIVE_AIRCRAFT_EXACT_MODEL_RULES = Object.freeze([
+    { assetKey: "Heli-NH90", patterns: [/\bnh[\s-]?90\b/i, /\buh[\s-]?72[a-z]?\b/i] },
+    { assetKey: "Tanker-A330-MRTT", patterns: [/\bil[\s-]?62[a-z0-9-]*\b/i] },
+    { assetKey: "AWACS-E7", patterns: [/\b737[\s-]?700\b.*\b(?:aew|awacs)\b/i] },
     { assetKey: "Bomber-SU34", patterns: [/\bsu[\s-]?34[a-z0-9-]*\b/i, /\bfullback\b/i] },
     { assetKey: "Bomber-B2", patterns: [/\bb[\s-]?2[a-z0-9-]*\b/i, /\bspirit\b/i] },
     { assetKey: "Bomber-B52", patterns: [/\bb[\s-]?52[a-z0-9-]*\b/i, /\bstratofortress\b/i] },
@@ -884,7 +887,7 @@ const LIVE_AIRCRAFT_EXACT_MODEL_RULES = Object.freeze([
     { assetKey: "Heli-MI17", patterns: [/\bmi[\s-]?17[a-z0-9-]*\b/i] },
     { assetKey: "Heli-412", patterns: [/\bbell[\s-]?412[a-z0-9-]*\b/i] },
     { assetKey: "Drone-Globalhawk", patterns: [/\brq[\s-]?4[a-z0-9-]*\b/i, /\bglobal\s*hawk\b/i, /\bmq[\s-]?4c\b/i] },
-    { assetKey: "Drone-MQ9", patterns: [/\bmq[\s-]?9[a-z0-9-]*\b/i, /\breaper\b/i] },
+    { assetKey: "Drone-MQ9", patterns: [/\bmq[\s-]?9[a-z0-9-]*\b/i, /\breaper\b/i, /\bhron\b/i] },
     { assetKey: "ISR-P8", patterns: [/\bp[\s-]?8[a-z0-9-]*\b/i, /\bposeidon\b/i] },
     { assetKey: "ISR-RC135", patterns: [/\brc[\s-]?135[a-z0-9-]*\b/i, /\brivet joint\b/i, /\bcobra ball\b/i, /\bcombat sent\b/i] },
     { assetKey: "ISR-Gulfstream", patterns: [/\bgulfstream\b/i, /\bg(?:280|550|650)\b/i] },
@@ -1017,6 +1020,11 @@ function buildAircraftAssetOverrideHaystack(track = {}) {
 function buildExactAircraftModelHaystack(track = {}) {
     const metadata = getTrackMetadata(track);
     const values = [
+        track.role,
+        track.roles,
+        metadata.role,
+        metadata.roles,
+        metadata.classification?.roles,
         track.aircraft_name,
         track.aircraftName,
         track.type,
@@ -1060,7 +1068,12 @@ function resolveExactAircraftModelAssetKey(track = {}) {
     const match = LIVE_AIRCRAFT_EXACT_MODEL_RULES.find((rule) => (
         LIVE_AIRCRAFT_ASSET_FILES[rule.assetKey] && hasAnyPattern(haystack, rule.patterns)
     ));
-    return match?.assetKey || "";
+    if (match) return match.assetKey;
+    const callsign = String(track.callsign || track.flight || track.ident || getTrackMetadata(track).callsign || getTrackMetadata(track).flight || getTrackMetadata(track).ident || "").trim().toUpperCase();
+    // Callsign-only demonstrations never override a positively supplied type.
+    const type = String(track.icao_type || track.type_code || track.type || track.model_name || track.description || getTrackMetadata(track).icao_type || getTrackMetadata(track).type || getTrackMetadata(track).model_name || getTrackMetadata(track).description || "").trim();
+    if (["HRON", "GAF512"].includes(callsign) && (!type || /^(?:MQ9|MQ-9|HRON|UAV|DRONE|UNKNOWN|UNIDENTIFIED|UNKN|N\/A)$/i.test(type))) return "Drone-MQ9";
+    return "";
 }
 function resolveAircraftCountryDefaultAssetKey(context = {}, role = "") {
     const normalizedRole = normalizeAircraftCategoryRole(role || context.subtype || "aircraft");
@@ -8416,10 +8429,7 @@ function resolveFocusedAircraftFallbackModelCode(track = {}, excludedCodes = [])
     ) return "";
     if (resolveExactAircraftModelAssetKey(track)) return "";
     const excluded = new Set(excludedCodes.map((value) => normalizeAircraftAssetKey(value)).filter(Boolean));
-    const subtype = normalizeAircraftCategoryRole(resolveTrackSubtype(track));
-    const candidates = subtype === "helicopter"
-        ? [LIVE_AIRCRAFT_GLOBAL_DEFAULTS.helicopter]
-        : [LIVE_AIRCRAFT_GLOBAL_DEFAULTS[subtype], LIVE_AIRCRAFT_MODEL_DEFAULT_CODE];
+    const candidates = ["ISR-Gulfstream"];
     return candidates
         .map((value) => normalizeAircraftAssetKey(value))
         .find((value) => value && !excluded.has(value) && isLiveAircraftModelCodeAvailable(value)) || "";
@@ -8442,7 +8452,7 @@ function resolveLiveTrackModelCode(track = {}) {
     if (exactAssetKey) return "";
     if (explicitAssetKey && isLiveAircraftModelCodeAvailable(explicitAssetKey)) return explicitAssetKey;
 
-    return resolveFocusedAircraftFallbackModelCode(track, [explicitAssetKey, exactAssetKey]);
+    return isLiveAircraftModelCodeAvailable("ISR-Gulfstream") ? "ISR-Gulfstream" : "";
 }
 function resolveLiveTrackModelUri(track = {}) {
     const modelCode = resolveLiveTrackModelCode(track);

@@ -1,5 +1,3 @@
-﻿/* --- assets/css/root.css --- */
-
 /* #region =========== Backgrounds =========== */
 :root {
     --color-bg-dark: rgba(32, 38, 49, 0.85);
@@ -152,12 +150,13 @@
 
 /* #endregion =========== */
 /* #region =========== Clip Paths =========== */
-  :root {
+:root {
     --clippath-shape-1: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 0);
     --clippath-shape-2: polygon(60% 1.5rem, calc(60% + 1.5rem) 0%, 100% 0, 100% calc(100% - 2rem), calc(100% - 2rem) 100%, 0 100%, 0 1.5rem);
     --clippath-shape-3: polygon(100% 0%, 0% 0%, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 0);
     --clippath-shape-4: polygon(100% 0rem, 100% 0rem, calc(100% - 0rem) 0rem, calc(100% - 0rem) calc(100% - 1rem), calc(100% - 1rem) calc(100% - 0rem), 0rem calc(100% - 0rem), 0rem calc(0% + 0rem));
-}   
+}
+
 /* #endregion =========== */
 /* #region =========== Event Type Colors =========== */
 :root {
@@ -212,19 +211,19 @@
     --gnss-cell-fill-unknown: rgba(69 80 94 / 30%);*/
 
     --gnss-cell-fill-low: rgba(13, 233, 79, 0.2);
-    --gnss-cell-fill-medium:rgba(252, 255, 77, 0.2);
+    --gnss-cell-fill-medium: rgba(252, 255, 77, 0.2);
     --gnss-cell-fill-high: rgba(138, 67, 254, 0.2);
     --gnss-cell-fill-severe: rgba(14, 127, 255, 0.2);
     --gnss-cell-fill-unknown: rgba(100, 114, 133, 0.2);
 
     --gnss-cell-outline-low: rgba(13, 233, 79, 0.1);
-    --gnss-cell-outline-medium:rgba(252, 255, 77, 0.1);
+    --gnss-cell-outline-medium: rgba(252, 255, 77, 0.1);
     --gnss-cell-outline-high: rgba(138, 67, 254, 0.1);
     --gnss-cell-outline-severe: rgba(14, 127, 255, 0.1);
     --gnss-cell-outline-unknown: rgba(100, 114, 133, 0.1);
 
     --gnss-legend-fill-low: rgba(13, 233, 79, 0.8);
-    --gnss-legend-fill-medium:rgba(252, 255, 77, 0.8);
+    --gnss-legend-fill-medium: rgba(252, 255, 77, 0.8);
     --gnss-legend-fill-high: rgba(138, 67, 254, 0.8);
     --gnss-legend-fill-severe: rgba(14, 127, 255, 0.8);
     --gnss-legend-fill-unknown: rgba(100, 114, 133, 0.8);
@@ -288,6 +287,7 @@
     --warzone-satellite-imagery-ring-size-px: 62;
     --warzone-satellite-imagery-ring-width-px: 2;
 }
+
 /* #endregion =========== */
 
 /* #region =========== Global Satellite Imagery =========== */
@@ -995,7 +995,7 @@
 
 /* #region =========== SATELLITE SCALING =========== */
 :root {
-    --warzone-satellite-model-scale: 2200;
+    --warzone-satellite-model-scale: 2000;
     --warzone-satellite-model-heading-deg: 320;
     --warzone-satellite-model-rotate-x-deg: -35;
     --warzone-satellite-model-rotate-y-deg: -150;
@@ -1032,6 +1032,7 @@
     --warzone-live-asset-hover-pulse-easing: ease-in-out;
 
 }
+
 /* #endregion =========== */
 
 /* #region =========== AIR TRACKER CONTROLS =========== */
@@ -1142,6 +1143,7 @@
     --warzone-live-aircraft-model-auto-radius: 240000;
 
 }
+
 /* #endregion =========== */
 
 /* #region =========== NAVAL TRACKER CONTROLS =========== */
@@ -1204,6 +1206,7 @@
     --warzone-live-naval-depth-test-disable-distance: 0;
 
 }
+
 /* #endregion =========== */
 
 /* #endregion =========== */
@@ -1282,6 +1285,7 @@
     --warzone-contour-height-smoothing-passes: 3;
 
 }
+
 /* #endregion =========== */
 /* #region =========== LIVE LABELS =========== */
 :root {
@@ -1483,6 +1487,39 @@
         --warzone-live-aircraft-model-focused-size: 20;
         --warzone-live-aircraft-model-focused-min-pixel-size: 52;
         --warzone-live-naval-model-focused-size: 20;
+
+        /* Operational satellite models; entry-screen satellites remain separate. */
+        --warzone-live-satellite-model-scale: var(--warzone-satellite-model-scale);
+        --warzone-live-satellite-model-scale-min: 0;
+        --warzone-live-satellite-model-scale-max: var(--warzone-orbital-model-max-scale);
+        --warzone-live-satellite-model-min-pixel-size: var(--warzone-orbital-model-min-px);
+        --warzone-live-satellite-model-focused-size: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-model-focused-min-pixel-size: var(--warzone-orbital-selected-model-min-px);
+        --warzone-live-satellite-model-heading: var(--warzone-satellite-model-rotate-z-deg);
+        --warzone-live-satellite-model-pitch: var(--warzone-satellite-model-rotate-y-deg);
+        --warzone-live-satellite-model-roll: var(--warzone-satellite-model-rotate-x-deg);
+
+        /* ISS independent overrides */
+        --warzone-live-satellite-iss-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-iss-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-iss-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-iss-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-iss-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-iss-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-iss-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-iss-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-iss-model-roll: var(--warzone-live-satellite-model-roll);
+
+        /* CSS independent overrides */
+        --warzone-live-satellite-css-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-css-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-css-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-css-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-css-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-css-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-css-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-css-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-css-model-roll: var(--warzone-live-satellite-model-roll);
     }
 }
 
@@ -1495,16 +1532,16 @@
         --warzone-live-naval-model-focused-size: 20;
         --warzone-live-naval-model-focused-min-pixel-size: 48px;
 
-         /* AIR GLB SIZE */
+        /* AIR GLB SIZE */
         --warzone-live-aircraft-model-scale: 0.7;
-       --warzone-live-aircraft-model-scale-min: var(--warzone-live-aircraft-model-scale);
+        --warzone-live-aircraft-model-scale-min: var(--warzone-live-aircraft-model-scale);
         --warzone-live-aircraft-model-scale-max: 10;
         --warzone-live-aircraft-model-min-pixel-size: 30;
         --warzone-live-aircraft-focus-altitude-offset-ft-1: 1400;
         --warzone-live-aircraft-focus-altitude-offset-ft-2: 2000;
         --warzone-live-aircraft-focus-altitude-offset-ft-3: 2400;
-        
-    
+
+
         /* AIR GLB SIZE — normal and Focus share this curve */
         --warzone-live-aircraft-model-scale-min-fighter: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-fighter: var(--warzone-live-aircraft-model-scale-max);
@@ -1513,7 +1550,7 @@
         --warzone-live-aircraft-model-scale-min-transport: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-transport: var(--warzone-live-aircraft-model-scale-max);
         --warzone-live-aircraft-model-focus-altitude-transport: var(--warzone-live-aircraft-focus-altitude-offset-ft-3);
-        
+
         --warzone-live-aircraft-model-scale-min-bomber: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-bomber: var(--warzone-live-aircraft-model-scale-max);
         --warzone-live-aircraft-model-focus-altitude-bomber: var(--warzone-live-aircraft-focus-altitude-offset-ft-3);
@@ -1544,7 +1581,7 @@
 
 
         --warzone-live-naval-model-scale: 1;
-       --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
+        --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
         --warzone-live-naval-model-scale-max: 10;
         --warzone-live-naval-model-min-pixel-size: 24px;
         --warzone-live-naval-focus-initial-distance: 500;
@@ -1585,27 +1622,60 @@
         --warzone-live-naval-model-scale-max-minesweeper: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-naval: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-naval: var(--warzone-live-naval-model-scale-max);
+
+        /* Operational satellite models; entry-screen satellites remain separate. */
+        --warzone-live-satellite-model-scale: var(--warzone-satellite-model-scale);
+        --warzone-live-satellite-model-scale-min: 0;
+        --warzone-live-satellite-model-scale-max: var(--warzone-orbital-model-max-scale);
+        --warzone-live-satellite-model-min-pixel-size: var(--warzone-orbital-model-min-px);
+        --warzone-live-satellite-model-focused-size: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-model-focused-min-pixel-size: var(--warzone-orbital-selected-model-min-px);
+        --warzone-live-satellite-model-heading: var(--warzone-satellite-model-rotate-z-deg);
+        --warzone-live-satellite-model-pitch: var(--warzone-satellite-model-rotate-y-deg);
+        --warzone-live-satellite-model-roll: var(--warzone-satellite-model-rotate-x-deg);
+
+        /* ISS independent overrides */
+        --warzone-live-satellite-iss-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-iss-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-iss-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-iss-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-iss-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-iss-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-iss-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-iss-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-iss-model-roll: var(--warzone-live-satellite-model-roll);
+
+        /* CSS independent overrides */
+        --warzone-live-satellite-css-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-css-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-css-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-css-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-css-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-css-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-css-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-css-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-css-model-roll: var(--warzone-live-satellite-model-roll);
     }
 }
 
 /* Large desktop, 1921–2559 CSS pixels */
 @media (min-width: 1921px) and (max-width: 2560px) {
     :root {
-  /* COMPATIBILITY ONLY — not used by the active GLB size curve */
+        /* COMPATIBILITY ONLY — not used by the active GLB size curve */
         --warzone-live-aircraft-model-focused-size: 20;
         --warzone-live-aircraft-model-focused-min-pixel-size: 30;
         --warzone-live-naval-model-focused-size: 20;
         --warzone-live-naval-model-focused-min-pixel-size: 48px;
 
-         /* AIR GLB SIZE */
+        /* AIR GLB SIZE */
         --warzone-live-aircraft-model-scale: 0.7;
-       --warzone-live-aircraft-model-scale-min: var(--warzone-live-aircraft-model-scale);
+        --warzone-live-aircraft-model-scale-min: var(--warzone-live-aircraft-model-scale);
         --warzone-live-aircraft-model-scale-max: 10;
         --warzone-live-aircraft-model-min-pixel-size: 30;
         --warzone-live-aircraft-focus-altitude-offset-ft-1: 1400;
         --warzone-live-aircraft-focus-altitude-offset-ft-2: 2000;
         --warzone-live-aircraft-focus-altitude-offset-ft-3: 2400;
-        
+
 
         /* AIR GLB SIZE — normal and Focus share this curve */
         --warzone-live-aircraft-model-scale-min-fighter: var(--warzone-live-aircraft-model-scale-min);
@@ -1615,7 +1685,7 @@
         --warzone-live-aircraft-model-scale-min-transport: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-transport: var(--warzone-live-aircraft-model-scale-max);
         --warzone-live-aircraft-model-focus-altitude-transport: var(--warzone-live-aircraft-focus-altitude-offset-ft-3);
-        
+
         --warzone-live-aircraft-model-scale-min-bomber: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-bomber: var(--warzone-live-aircraft-model-scale-max);
         --warzone-live-aircraft-model-focus-altitude-bomber: var(--warzone-live-aircraft-focus-altitude-offset-ft-3);
@@ -1646,7 +1716,7 @@
 
 
         --warzone-live-naval-model-scale: 1;
-       --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
+        --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
         --warzone-live-naval-model-scale-max: 10;
         --warzone-live-naval-model-min-pixel-size: 24px;
         --warzone-live-naval-focus-initial-distance: 600;
@@ -1687,28 +1757,62 @@
         --warzone-live-naval-model-scale-max-minesweeper: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-naval: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-naval: var(--warzone-live-naval-model-scale-max);
+
+        /* Operational satellite models; entry-screen satellites remain separate. */
+        --warzone-live-satellite-model-scale: var(--warzone-satellite-model-scale);
+        --warzone-live-satellite-model-scale-min: 0;
+        --warzone-live-satellite-model-scale-max: var(--warzone-orbital-model-max-scale);
+        --warzone-live-satellite-model-min-pixel-size: var(--warzone-orbital-model-min-px);
+        --warzone-live-satellite-model-focused-size: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-model-focused-min-pixel-size: var(--warzone-orbital-selected-model-min-px);
+        --warzone-live-satellite-model-heading: var(--warzone-satellite-model-rotate-z-deg);
+        --warzone-live-satellite-model-pitch: var(--warzone-satellite-model-rotate-y-deg);
+        --warzone-live-satellite-model-roll: var(--warzone-satellite-model-rotate-x-deg);
+
+        /* ISS independent overrides */
+        --warzone-live-satellite-iss-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-iss-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-iss-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-iss-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-iss-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-iss-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-iss-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-iss-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-iss-model-roll: var(--warzone-live-satellite-model-roll);
+
+        /* CSS independent overrides */
+        --warzone-live-satellite-css-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-css-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-css-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-css-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-css-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-css-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-css-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-css-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-css-model-roll: var(--warzone-live-satellite-model-roll);
     }
 }
 
 /* QHD / ultrawide, 2560–3839 CSS pixels */
 @media (min-width: 2561px) and (max-width: 3839px) {
     :root {
-  /* COMPATIBILITY ONLY — not used by the active GLB size curve */
+        /* COMPATIBILITY ONLY — not used by the active GLB size curve */
         --warzone-live-aircraft-model-focused-size: 20;
         --warzone-live-aircraft-model-focused-min-pixel-size: 30;
         --warzone-live-naval-model-focused-size: 20;
         --warzone-live-naval-model-focused-min-pixel-size: 48px;
-        
 
-         /* AIR GLB SIZE */
+
+        /* AIR GLB SIZE */
         --warzone-live-aircraft-model-scale: 0.7;
-       --warzone-live-aircraft-model-scale-min: var(--warzone-live-aircraft-model-scale);
+        --warzone-live-aircraft-model-scale-min: var(--warzone-live-aircraft-model-scale);
         --warzone-live-aircraft-model-scale-max: 10;
-       --warzone-live-aircraft-model-min-pixel-size: 36; /* Regional visibility floor; close-up endpoint unchanged. */
+        --warzone-live-aircraft-model-min-pixel-size: 36;
+        /* Regional visibility floor; close-up endpoint unchanged. */
         --warzone-live-aircraft-focus-altitude-offset-ft-1: 20100;
         --warzone-live-aircraft-focus-altitude-offset-ft-2: 2600;
         --warzone-live-aircraft-focus-altitude-offset-ft-3: 3200;
-        
+
 
         /* AIR GLB SIZE — normal and Focus share this curve */
         --warzone-live-aircraft-model-scale-min-fighter: var(--warzone-live-aircraft-model-scale-min);
@@ -1718,7 +1822,7 @@
         --warzone-live-aircraft-model-scale-min-transport: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-transport: var(--warzone-live-aircraft-model-scale-max);
         --warzone-live-aircraft-model-focus-altitude-transport: var(--warzone-live-aircraft-focus-altitude-offset-ft-3);
-        
+
         --warzone-live-aircraft-model-scale-min-bomber: var(--warzone-live-aircraft-model-scale-min);
         --warzone-live-aircraft-model-scale-max-bomber: var(--warzone-live-aircraft-model-scale-max);
         --warzone-live-aircraft-model-focus-altitude-bomber: var(--warzone-live-aircraft-focus-altitude-offset-ft-3);
@@ -1749,9 +1853,10 @@
 
 
         --warzone-live-naval-model-scale: 1.1;
-       --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
+        --warzone-live-naval-model-scale-min: var(--warzone-live-naval-model-scale);
         --warzone-live-naval-model-scale-max: 11;
-       --warzone-live-naval-model-min-pixel-size: 39; /* Regional visibility floor; close-up endpoint unchanged. */
+        --warzone-live-naval-model-min-pixel-size: 39;
+        /* Regional visibility floor; close-up endpoint unchanged. */
         --warzone-live-naval-focus-initial-distance: 400;
         --warzone-live-naval-ctr-focused-distance: 400;
 
@@ -1790,6 +1895,51 @@
         --warzone-live-naval-model-scale-max-minesweeper: var(--warzone-live-naval-model-scale-max);
         --warzone-live-naval-model-scale-min-naval: var(--warzone-live-naval-model-scale-min);
         --warzone-live-naval-model-scale-max-naval: var(--warzone-live-naval-model-scale-max);
+
+
+
+
+    --warzone-satellite-model-scale: 2000;
+    --warzone-satellite-model-heading-deg: 320;
+    --warzone-satellite-model-rotate-x-deg: 40;
+    --warzone-satellite-model-rotate-y-deg: 0
+    ;
+    --warzone-satellite-model-rotate-z-deg: var(--warzone-satellite-model-heading-deg);
+
+
+
+        /* Operational satellite models; entry-screen satellites remain separate. */
+        --warzone-live-satellite-model-scale: var(--warzone-satellite-model-scale);
+        --warzone-live-satellite-model-scale-min: 0;
+        --warzone-live-satellite-model-scale-max: var(--warzone-orbital-model-max-scale);
+        --warzone-live-satellite-model-min-pixel-size: var(--warzone-orbital-model-min-px);
+        --warzone-live-satellite-model-focused-size: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-model-focused-min-pixel-size: var(--warzone-orbital-selected-model-min-px);
+        --warzone-live-satellite-model-heading: var(--warzone-satellite-model-rotate-z-deg);
+        --warzone-live-satellite-model-pitch: var(--warzone-satellite-model-rotate-y-deg);
+        --warzone-live-satellite-model-roll: var(--warzone-satellite-model-rotate-x-deg);
+
+        /* ISS independent overrides */
+        --warzone-live-satellite-iss-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-iss-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-iss-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-iss-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-iss-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-iss-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-iss-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-iss-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-iss-model-roll: var(--warzone-live-satellite-model-roll);
+
+        /* CSS independent overrides */
+        --warzone-live-satellite-css-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-css-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-css-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-css-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-css-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-css-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-css-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-css-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-css-model-roll: var(--warzone-live-satellite-model-roll);
     }
 }
 
@@ -1877,8 +2027,42 @@
         /* COMPATIBILITY ONLY — not used by the active GLB size curve */
         --warzone-live-aircraft-model-focused-size: 20;
         --warzone-live-naval-model-focused-size: 20;
+
+        /* Operational satellite models; entry-screen satellites remain separate. */
+        --warzone-live-satellite-model-scale: var(--warzone-satellite-model-scale);
+        --warzone-live-satellite-model-scale-min: 0;
+        --warzone-live-satellite-model-scale-max: var(--warzone-orbital-model-max-scale);
+        --warzone-live-satellite-model-min-pixel-size: var(--warzone-orbital-model-min-px);
+        --warzone-live-satellite-model-focused-size: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-model-focused-min-pixel-size: var(--warzone-orbital-selected-model-min-px);
+        --warzone-live-satellite-model-heading: var(--warzone-satellite-model-rotate-z-deg);
+        --warzone-live-satellite-model-pitch: var(--warzone-satellite-model-rotate-y-deg);
+        --warzone-live-satellite-model-roll: var(--warzone-satellite-model-rotate-x-deg);
+
+        /* ISS independent overrides */
+        --warzone-live-satellite-iss-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-iss-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-iss-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-iss-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-iss-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-iss-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-iss-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-iss-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-iss-model-roll: var(--warzone-live-satellite-model-roll);
+
+        /* CSS independent overrides */
+        --warzone-live-satellite-css-model-scale: var(--warzone-live-satellite-model-scale);
+        --warzone-live-satellite-css-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+        --warzone-live-satellite-css-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+        --warzone-live-satellite-css-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+        --warzone-live-satellite-css-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+        --warzone-live-satellite-css-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+        --warzone-live-satellite-css-model-heading: var(--warzone-live-satellite-model-heading);
+        --warzone-live-satellite-css-model-pitch: var(--warzone-live-satellite-model-pitch);
+        --warzone-live-satellite-css-model-roll: var(--warzone-live-satellite-model-roll);
     }
 }
+
 /* #endregion =========== */
 
 
@@ -1944,7 +2128,7 @@
     --wz-intro-gnss-size: 100; */
 
 
- /* TITLED 2 */
+    /* TITLED 2 */
     /* --warzone-start-lon: 33.0;
     --warzone-start-lat: -5.2;
     --warzone-start-height: 6050000;
@@ -2023,7 +2207,7 @@
     --wz-startup-c5-1-bank-deg: 8;
     --wz-startup-c17-1-bank-deg: 12;
 
-      /* BEST */
+    /* BEST */
     /* --warzone-start-lon: 33.6;
     --warzone-start-lat: 19.0;
     --warzone-start-height: 23000000;
@@ -2456,21 +2640,25 @@
     --wz-startup-vapor-color-g: 245;
     --wz-startup-vapor-color-b: 220;
 }
+
 /* Intelligence presentation: independent country rows and source reports. */
 :root {
-    --wz-status-columns: 1; /* Set 2 for country summary / report columns. */
+    --wz-status-columns: 1;
+    /* Set 2 for country summary / report columns. */
     --wz-airspace-reported-color: var(--warzone-airspace-color);
     --wz-cyber-reported-color: var(--warzone-cyber-color);
     --wz-status-reported-background: var(--color-bg-row);
     /* NOTAM: published polygons only; Q-line radii are approximate, hidden by default. */
     --wz-notice-line-color: #ff9f1c;
-    --wz-notice-line-width: 2; /* Screen pixels, including on Windows. */
+    --wz-notice-line-width: 2;
+    /* Screen pixels, including on Windows. */
     --wz-notice-fill-color: #ff9f1c;
     --wz-notice-fill-opacity: 0.07;
     --wz-notice-hatch-color: #ff9f1c;
     --wz-notice-hatch-opacity: 0.22;
     --wz-notice-hatch-repeat: 32;
-    --wz-notice-height: 60; /* Metres above ellipsoid. */
+    --wz-notice-height: 60;
+    /* Metres above ellipsoid. */
     /* NOTAM billboard and connector styling. Leave colors unset to retain
        category/status colors; set either color to explicitly override it. */
     --wz-notam-marker-color: initial;
@@ -2491,7 +2679,8 @@
     --wz-notam-popup-gap: 55px;
     /* Existing size controls remain compatible, without a second default. */
     --wz-notice-marker-size: var(--wz-notam-marker-size);
-    --wz-notice-show-radius: 0; /* 1 opts into approximate source radius circles. */
+    --wz-notice-show-radius: 0;
+    /* 1 opts into approximate source radius circles. */
     --wz-notice-panel-width: 34rem;
     --wz-notice-popup-width: 32rem;
     --wz-notice-panel-max-height: 55vh;
@@ -2514,7 +2703,10 @@
     --wz-notice-capture-overlay-opacity: .35;
     --wz-notice-export-max-pixels: 16000000;
 }
-:root { --wz-notice-critical-color: var(--color-red-glow); }
+
+:root {
+    --wz-notice-critical-color: var(--color-red-glow);
+}
 
 /* NOTAM saved PNG only. Dimensions are CSS pixels; high-DPI output scales uniformly.
    Small selections fit this minimum design canvas without clipping the annotation. */
@@ -2550,7 +2742,7 @@
     --notam-export-label-padding: 2px 12px;
     --notam-export-label-line-height: 1.25;
     --notam-export-label-spacing: 1px;
-    --notam-export-label-clip: polygon(0 0,100% 0,100% 75%,90% 100%,0 100%);
+    --notam-export-label-clip: polygon(0 0, 100% 0, 100% 75%, 90% 100%, 0 100%);
     --notam-export-details-gap: 18px;
     --notam-export-details-size: 15px;
     --notam-export-details-weight: 500;
@@ -2573,5 +2765,41 @@
     --notam-export-marker-width: 5px;
     --notam-export-marker-color: #00d9d2;
     --notam-export-marker-opacity: 1;
-    --notam-export-marker-clip: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+    --notam-export-marker-clip: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+
+
+:root {
+    /* Operational satellite models; entry-screen satellites remain separate. */
+    --warzone-live-satellite-model-scale: var(--warzone-satellite-model-scale);
+    --warzone-live-satellite-model-scale-min: 0;
+    --warzone-live-satellite-model-scale-max: var(--warzone-orbital-model-max-scale);
+    --warzone-live-satellite-model-min-pixel-size: var(--warzone-orbital-model-min-px);
+    --warzone-live-satellite-model-focused-size: var(--warzone-live-satellite-model-scale);
+    --warzone-live-satellite-model-focused-min-pixel-size: var(--warzone-orbital-selected-model-min-px);
+    --warzone-live-satellite-model-heading: var(--warzone-satellite-model-rotate-z-deg);
+    --warzone-live-satellite-model-pitch: var(--warzone-satellite-model-rotate-y-deg);
+    --warzone-live-satellite-model-roll: var(--warzone-satellite-model-rotate-x-deg);
+
+    /* ISS independent overrides */
+    --warzone-live-satellite-iss-model-scale: var(--warzone-live-satellite-model-scale);
+    --warzone-live-satellite-iss-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+    --warzone-live-satellite-iss-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+    --warzone-live-satellite-iss-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+    --warzone-live-satellite-iss-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+    --warzone-live-satellite-iss-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+    --warzone-live-satellite-iss-model-heading: var(--warzone-live-satellite-model-heading);
+    --warzone-live-satellite-iss-model-pitch: var(--warzone-live-satellite-model-pitch);
+    --warzone-live-satellite-iss-model-roll: var(--warzone-live-satellite-model-roll);
+
+    /* CSS independent overrides */
+    --warzone-live-satellite-css-model-scale: var(--warzone-live-satellite-model-scale);
+    --warzone-live-satellite-css-model-scale-min: var(--warzone-live-satellite-model-scale-min);
+    --warzone-live-satellite-css-model-scale-max: var(--warzone-live-satellite-model-scale-max);
+    --warzone-live-satellite-css-model-min-pixel-size: var(--warzone-live-satellite-model-min-pixel-size);
+    --warzone-live-satellite-css-model-focused-size: var(--warzone-live-satellite-model-focused-size);
+    --warzone-live-satellite-css-model-focused-min-pixel-size: var(--warzone-live-satellite-model-focused-min-pixel-size);
+    --warzone-live-satellite-css-model-heading: var(--warzone-live-satellite-model-heading);
+    --warzone-live-satellite-css-model-pitch: var(--warzone-live-satellite-model-pitch);
+    --warzone-live-satellite-css-model-roll: var(--warzone-live-satellite-model-roll);
 }

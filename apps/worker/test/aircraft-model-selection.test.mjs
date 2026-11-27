@@ -10,6 +10,7 @@ const context = vm.createContext({ __liveAircraftFailedModelUris: new Set(), __l
   LIVE_AIRCRAFT_ASSET_KEY_BY_ICON_CODE: {}, getTrackMetadata: (track) => track.metadata || {},
   isTrackInFocusVisualContext: () => false, resolveTrackSubtype: (track) => track.subcategory || "aircraft",
   normalizeAircraftCategoryRole: (value) => value,
+  getCssText: () => "model", normalizeAircraftRenderMode: value => value, LIVE_TRACK_RENDER_MODE: { MODEL: "model" },
   Cesium: { Resource: class { constructor(options) { Object.assign(this, options); } } } });
 function declaration(name, endMarker) {
   const start = source.indexOf(`const ${name} =`);
@@ -45,14 +46,14 @@ test("neighboring dedicated types remain correctly mapped", () => {
   expectModel({ model_name: "Northrop Grumman RQ-4B Global Hawk" }, "Drone-Globalhawk", globalHawkUri);
   expectModel({ model_name: "General Atomics MQ-9 Reaper" }, "Drone-MQ9", "/assets/images/models/air/Drone-MQ9.glb");
   expectModel({ model_name: "F/A-18 Super Hornet" }, "Fighter-F18", "/assets/images/models/air/Fighter-F18.glb");
-  assert.equal(context.resolveLiveTrackModelCode({ model_name: "MQ-1 Predator", subcategory: "uav" }), "");
-  assert.equal(context.resolveLiveTrackModelCode({ model_name: "Unrelated UAV", subcategory: "uav" }), "");
+  assert.equal(context.resolveLiveTrackModelCode({ model_name: "MQ-1 Predator", subcategory: "uav" }), "ISR-Gulfstream");
+  assert.equal(context.resolveLiveTrackModelCode({ model_name: "Unrelated UAV", subcategory: "uav" }), "ISR-Gulfstream");
 });
-test("failed exact GLB cannot fall back to a fighter", () => {
+test("transient GLB delivery error retains exact mapping rather than substituting a fighter", () => {
   context.__liveAircraftFailedModelUris.add(globalHawkUri);
   try {
-    assert.equal(context.resolveLiveTrackModelCode({ model_name: "MQ-4C Triton", asset_key: "Fighter-F16" }), "");
-    assert.equal(context.resolveLiveTrackModelUri({ model_name: "MQ-4C Triton" }), "");
+    assert.equal(context.resolveLiveTrackModelCode({ model_name: "MQ-4C Triton", asset_key: "Fighter-F16" }), "Drone-Globalhawk");
+    assert.equal(context.resolveLiveTrackModelUri({ model_name: "MQ-4C Triton" }), globalHawkUri);
   } finally { context.__liveAircraftFailedModelUris.delete(globalHawkUri); }
 });
 test("resolved URL names an existing GLB 2 asset with exact casing", () => {

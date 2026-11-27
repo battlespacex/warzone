@@ -9,6 +9,8 @@ import {
     getSatelliteModelPitchDeg,
     getSatelliteModelRollDeg,
     getSatelliteModelScale,
+    getOperationalSatelliteModelStyle,
+    invalidateOperationalSatelliteStyles,
     getStartupSatelliteModelProfile,
     resolveSatelliteModelProfile,
 } from "./warzone-satellite-models.js";
@@ -250,12 +252,12 @@ const satelliteOrientationScratch = {
     angles: new Cesium.HeadingPitchRoll(),
 };
 
-function createSatelliteModelOrientation(position, result) {
+function createSatelliteModelOrientation(position, result, record = {}) {
     if (!position) return undefined;
     const scratch = satelliteOrientationScratch;
     const enu = Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, scratch.enu);
     const base = Cesium.Matrix4.getMatrix3(enu, scratch.base);
-    const angles = getOperationalSatelliteAngles();
+    const angles = getOperationalSatelliteAngles(record);
     scratch.angles.heading = Cesium.Math.toRadians(angles.heading);
     scratch.angles.pitch = Cesium.Math.toRadians(angles.pitch);
     scratch.angles.roll = Cesium.Math.toRadians(angles.roll);
@@ -264,11 +266,11 @@ function createSatelliteModelOrientation(position, result) {
     return Cesium.Quaternion.fromRotationMatrix(final, result);
 }
 
-function createSatelliteModelOrientationProperty(positionProperty) {
+function createSatelliteModelOrientationProperty(positionProperty, record = {}) {
     const positionScratch = new Cesium.Cartesian3();
     return new Cesium.CallbackProperty((time, result) => {
         const position = positionProperty?.getValue?.(time, positionScratch);
-        return position ? createSatelliteModelOrientation(position, result) : undefined;
+        return position ? createSatelliteModelOrientation(position, result, record) : undefined;
     }, false);
 }
 
@@ -397,12 +399,28 @@ function orbitalMetrics() {
         frames: 0, maxFrameIntervalMs: 0, longTasks: 0, longTaskMs: 0, maxChunkMs: 0 });
 }
 
-function getOperationalSatelliteAngles() {
+function getOperationalSatelliteAngles(record = {}) {
     const at = performance.now();
-    if (!state.orientationCache || at - state.orientationCache.at >= 250) {
-        state.orientationCache = { at, heading: getSatelliteModelHeadingDeg(0), pitch: getSatelliteModelPitchDeg(-150), roll: getSatelliteModelRollDeg(-15) };
+    const key = String(record.noradId || record.id || "");
+    if (!state.orientationCache || state.orientationCache.key !== key || at - state.orientationCache.at >= 250) {
+        state.orientationCache = { at, key, ...getOperationalSatelliteModelStyle(record) };
     }
     return state.orientationCache;
+}
+function operationalModelGraphics(record, focused = false) {
+    const { scale, minimumPixelSize, maximumScale } = getOperationalSatelliteModelStyle(record, focused);
+    return { scale, minimumPixelSize, maximumScale };
+}
+function refreshOperationalModelStyles() {
+    invalidateOperationalSatelliteStyles();
+    state.orientationCache = null;
+    for (const entry of state.entities.values()) {
+        if (entry.point?.model) Object.assign(entry.point.model, operationalModelGraphics(entry.record));
+    }
+    const record = getSatelliteRecord(state.selectedId);
+    const selected = record && state.viewer?.entities?.getById?.(`wz-orbital-selected-${record.noradId}`);
+    if (selected?.model) Object.assign(selected.model, operationalModelGraphics(record, true));
+    state.viewer?.scene?.requestRender?.();
 }
 
 function orbitalInputBusy() {
@@ -855,7 +873,7 @@ function updateFocusedSatelliteVisual() {
     if (!record || !selected || !state.viewer?.entities?.contains?.(selected)) return false;
     const point = propagateRecord(record, new Date());
     if (!point?.position) return false;
-    const orientation = createSatelliteModelOrientation(point.position);
+    const orientation = createSatelliteModelOrientation(point.position, undefined, record);
     if (typeof selected.position?.setValue === "function") selected.position.setValue(point.position);
     else selected.position = point.position;
     if (typeof selected.orientation?.setValue === "function") selected.orientation.setValue(orientation);
@@ -1320,12 +1338,10 @@ function makePointEntity(record, positionProperty) {
     const point = state.viewer.entities.add({
         id: `wz-orbital-${record.noradId}`,
         position: positionProperty,
-        orientation: createSatelliteModelOrientationProperty(positionProperty),
+        orientation: createSatelliteModelOrientationProperty(positionProperty, record),
         model: {
             uri: modelProfile.uri,
-            scale: getSatelliteModelScale(getCssNumber("--warzone-orbital-model-scale", 170000)),
-            minimumPixelSize: getCssNumber("--warzone-orbital-model-min-px", 18),
-            maximumScale: getCssNumber("--warzone-orbital-model-max-scale", 260000),
+            ...operationalModelGraphics(record),
             distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, Number.MAX_VALUE),
             shadows: Cesium.ShadowMode.DISABLED,
         },
@@ -1363,9 +1379,8 @@ function updateDefaultEntities() {
     const now = new Date();
     const nextIds = new Set();
     const records = state.visibleRecords.slice();
-    const style = { scale: getSatelliteModelScale(getCssNumber("--warzone-orbital-model-scale", 170000)),
-        minimumPixelSize: getCssNumber("--warzone-orbital-model-min-px", 18), maximumScale: getCssNumber("--warzone-orbital-model-max-scale", 260000) };
     const update = record => {
+        const style = operationalModelGraphics(record);
         const existing = state.entities.get(record.id);
         const cached = existing?.point?.position;
         const sameElements = existing?.record === record || (existing?.record?.omm && JSON.stringify(existing.record.omm) === JSON.stringify(record.omm));
@@ -1382,7 +1397,7 @@ function updateDefaultEntities() {
             const modelProfile = resolveSatelliteModelProfile(record);
             if (existing.point.position !== position) {
                 existing.point.position = position;
-                existing.point.orientation = createSatelliteModelOrientationProperty(position);
+                existing.point.orientation = createSatelliteModelOrientationProperty(position, record);
             }
             existing.record = record;
             if (existing.point.model) {
@@ -1704,7 +1719,7 @@ function updateSelectedSatellitePosition() {
     if (!point?.position) return false;
     if (typeof selected.position?.setValue === "function") selected.position.setValue(point.position);
     else selected.position = point.position;
-    const orientation = createSatelliteModelOrientation(point.position);
+    const orientation = createSatelliteModelOrientation(point.position, undefined, record);
     if (typeof selected.orientation?.setValue === "function") selected.orientation.setValue(orientation);
     else selected.orientation = orientation;
     state.focusRuntime.currentPosition = Cesium.Cartesian3.clone(
@@ -1966,7 +1981,7 @@ function commitSatelliteSelection(id = "", options = {}) {
         viewer.entities.add({
             id: `wz-orbital-selected-${record.noradId}`,
             position: current.position,
-            orientation: createSatelliteModelOrientation(current.position),
+            orientation: createSatelliteModelOrientation(current.position, undefined, record),
 
             // Initial camera framing used before controlled follow begins.
             viewFrom: new Cesium.Cartesian3(
@@ -1977,20 +1992,7 @@ function commitSatelliteSelection(id = "", options = {}) {
 
             model: {
                 uri: modelProfile.uri,
-                scale: getSatelliteModelScale(
-                    getCssNumber(
-                        "--warzone-orbital-selected-model-scale",
-                        170000
-                    )
-                ),
-                minimumPixelSize: getCssNumber(
-                    "--warzone-orbital-selected-model-min-px",
-                    18
-                ),
-                maximumScale: getCssNumber(
-                    "--warzone-orbital-selected-model-max-scale",
-                    260000
-                ),
+                ...operationalModelGraphics(record, true),
                 shadows: Cesium.ShadowMode.DISABLED,
             },
 
@@ -2110,6 +2112,8 @@ function startTimers() {
 }
 
 function cleanupLayer() {
+    if (state.modelStyleFrame) cancelAnimationFrame(state.modelStyleFrame);
+    state.modelStyleFrame = 0;
     state.performanceCleanup?.();
     state.performanceCleanup = null;
     state.controlsDirty = false;
@@ -2269,11 +2273,27 @@ export function clearWarzoneMilSatsSelection() {
 export function initWarzoneMilSats(viewer) {
     if (viewer && state.viewer === viewer) return;
     mergeConfig();
+    if (!state.modelStyleListenersBound) {
+        state.modelStyleListenersBound = true;
+        const refresh = () => {
+            if (!state.enabled) { invalidateOperationalSatelliteStyles(); return; }
+            if (state.modelStyleFrame) return;
+            state.modelStyleFrame = requestAnimationFrame(() => {
+                state.modelStyleFrame = 0;
+                refreshOperationalModelStyles();
+            });
+        };
+        window.addEventListener("resize", refresh, { passive: true });
+        window.addEventListener("orientationchange", refresh, { passive: true });
+        state.modelStyleObserver = new MutationObserver(refresh);
+        state.modelStyleObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
+        state.modelStyleObserver.observe(document.head, { childList: true, subtree: true, characterData: true });
+    }
     if (viewer) state.viewer = viewer;
     if (state.viewer && state.enabled) installSatelliteFocusTasks();
     window.refreshWarzoneMilSatsScale = () => {
         if (startupDemoState.enabled) refreshStartupDemoScale();
-        if (state.enabled) { state.orientationCache = null; updateDefaultEntities(); }
+        if (state.enabled) refreshOperationalModelStyles();
     };
     document.removeEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);

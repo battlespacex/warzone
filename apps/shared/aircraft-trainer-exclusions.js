@@ -87,8 +87,13 @@ export const TRAINER_PLATFORM_PATTERNS = [
 ];
 
 export function isExcludedTrainerAircraftText(text = "") {
-    const haystack = String(text || "");
+    const haystack = String(text || "").replace(/[‐‑–—_]/g, "-").replace(/\s*-\s*/g, "-").replace(/\s+/g, " ").trim();
     if (!haystack) return false;
+    if (/\b(?:T[ -]*44[ -]*AS?|C[ -]*12[ -]*V|F[ -]*5[ -]*N|TG[ -]*16A?|PC[ -]*6|B2[ -]*H4)\b/i.test(haystack)) return true;
+    if (/\b(?:PEGASUS|HURON|PAT322)\b/i.test(haystack) && /\b(?:BEECH|BEECHCRAFT|KING AIR)\b/i.test(haystack)
+        && !/\bC[ -]*12(?![ -]*V)[A-Z]?\b/i.test(haystack)) return true;
+    if (/\bFMMCA\b/i.test(haystack) && /\bPILATUS\b/i.test(haystack) && !/\bPC[ -]*(?:12|24)\b/i.test(haystack)) return true;
+    if (/\bTIGER(?: II)?\b/i.test(haystack) && /\b(?:NORTHROP|F[ -]*5N?)\b/i.test(haystack) && !/\bF[ -]*5[ABEF]\b/i.test(haystack)) return true;
     const hasTrainingActivity = TRAINING_ACTIVITY_PATTERNS.some((pattern) => pattern.test(haystack));
     if (!hasTrainingActivity && TRAINER_SPECIAL_OPERATIONAL_PATTERNS.some((pattern) => pattern.test(haystack))) {
         return false;
